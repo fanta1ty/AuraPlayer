@@ -63,3 +63,4 @@ fastlane/test_output
 
 # Build guide
 AuraPlayer_build_guide.md
+DESIGN_NOTES.md
