@@ -71,6 +71,52 @@ final class AuraAudioEngine {
         engine.stop()
     }
     
+    // MARK: - Playback
+    private var audioFile: AVAudioFile?
+    
+    /// Load and play a local audio file from the given URL.
+    func play(url: URL) {
+        do {
+            let file = try AVAudioFile(forReading: url)
+            audioFile = file
+            
+            // Reconnect the graph to match this file's format, then ensure running.
+            reconnect(with: file.processingFormat)
+            start()
+            
+            // Schedule the whole file, then play.
+            playerNode.stop()
+            playerNode.scheduleFile(file, at: nil) {
+                print("ℹ️ Finished playing: \(url.lastPathComponent)")
+            }
+            playerNode.play()
+            print("▶️ Playing: \(url.lastPathComponent)")
+            
+        } catch {
+            print("⚠️ Could not load audio file at \(url.lastPathComponent): \(error)")
+        }
+    }
+    
+    func pause() {
+        playerNode.pause()
+        print("⏸️ Paused")
+    }
+    
+    func resume() {
+        start()
+        playerNode.play()
+        print("▶️ Resumed")
+    }
+    
+    func stop() {
+        playerNode.stop()
+        audioFile = nil
+        print("⏹️ Stopped")
+    }
+    
+    var isPlaying: Bool { playerNode.isPlaying }
+
+    
     // MARK: - Configuration changes
     
     private func registerObservers() {
