@@ -74,26 +74,98 @@ final class AuraAudioEngine {
     // MARK: - Playback
     private var audioFile: AVAudioFile?
     
+    // Time tracking
+    private var sampleRate: Double = 44_100
+    private var lengthSamples: AVAudioFramePosition = 0
+    private var seekFrame: AVAudioFramePosition = 0
+    
+    /// Total duration of the loaded file, in seconds.
+    var duration: TimeInterval {
+        guard sampleRate > 0 else { return 0 }
+        return Double(lengthSamples) / sampleRate
+    }
+    
+    /// Current playback position, in seconds
+    var currentTime: TimeInterval {
+        guard let nodeTime = playerNode.lastRenderTime, let playerTime = playerNode.playerTime(
+            forNodeTime: nodeTime
+        ) else {
+            return Double(seekFrame) / sampleRate
+        }
+        let current = Double(seekFrame + playerTime.sampleTime) / sampleRate
+        return min(max(current, 0), duration)
+    }
+    
+    /// Fires when a track finishes playing naturally (not via stop/seek/skip)
+    var onTrackFinished: (() -> Void)?
+    
+    /// Bumped every time we stop/seek/reschedule so stale completions are ignored.
+    private var playGeneration = 0
+    
     /// Load and play a local audio file from the given URL.
     func play(url: URL) {
         do {
             let file = try AVAudioFile(forReading: url)
             audioFile = file
+            sampleRate = file.processingFormat.sampleRate
+            lengthSamples = file.length
+            seekFrame = 0
             
             // Reconnect the graph to match this file's format, then ensure running.
             reconnect(with: file.processingFormat)
             start()
             
+            playGeneration += 1
+            let gen = playGeneration
+            
             // Schedule the whole file, then play.
             playerNode.stop()
-            playerNode.scheduleFile(file, at: nil) {
+            playerNode.scheduleFile(file, at: nil) { [weak self] in
+                guard let self else { return }
                 print("ℹ️ Finished playing: \(url.lastPathComponent)")
+                
+                DispatchQueue.main.async {
+                    guard gen == self.playGeneration else { return } // stale -> ignore
+                    self.onTrackFinished?()
+                }
             }
             playerNode.play()
             print("▶️ Playing: \(url.lastPathComponent)")
             
         } catch {
             print("⚠️ Could not load audio file at \(url.lastPathComponent): \(error)")
+        }
+    }
+    
+    /// Seek to a time offset. Works while playing or paused.
+    func seek(to time: TimeInterval) {
+        guard let file = audioFile else { return }
+        let wasPlaying = playerNode.isPlaying
+        let newFrame = AVAudioFramePosition(max(0, time) * sampleRate)
+        let framesToPlay = lengthSamples - newFrame
+        guard framesToPlay > 0 else { return }
+        
+        playGeneration += 1
+        let gen = playGeneration
+        playerNode.stop()
+        seekFrame = newFrame
+        playerNode
+            .scheduleSegment(
+                file,
+                startingFrame: newFrame,
+                frameCount: AVAudioFrameCount(framesToPlay),
+                at: nil
+            ) { [weak self] in
+                guard let self else { return }
+                DispatchQueue.main.async {
+                    guard gen == self.playGeneration else { return }
+                    self.onTrackFinished?()
+                }
+            }
+        
+        if wasPlaying {
+            start()
+            playerNode.play()
         }
     }
     
@@ -109,6 +181,7 @@ final class AuraAudioEngine {
     }
     
     func stop() {
+        playGeneration += 1
         playerNode.stop()
         audioFile = nil
         print("⏹️ Stopped")

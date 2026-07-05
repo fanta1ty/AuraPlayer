@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    private let engine = AuraAudioEngine.shared
+    @StateObject private var player = PlayerViewModel()
     
     var body: some View {
         VStack(spacing: AuraSpacing.xl) {
@@ -16,25 +16,45 @@ struct ContentView: View {
                 .font(.auraDisplay)
                 .foregroundStyle(Color.textPrimary)
             
-            AuraButton("Play Test File", systemImage: "play.fill", variant: .primary) {
-                // Change "test" / "mp3" to match the file you added.
-                if let url = Bundle.main.url(forResource: "test", withExtension: "mp3") {
-                    engine.play(url: url)
-                } else {
-                    print("⚠️ test.mp3 not found in bundle")
+            // Progress slider (scrubbing seeks)
+            VStack(spacing: AuraSpacing.sm) {
+                AuraSlider(value: Binding(get: {
+                    player.progress
+                }, set: {
+                    player.seek(toProgress: $0)
+                }))
+                HStack {
+                    Text(timeString(player.currentTime))
+                    Spacer()
+                    Text(timeString(player.duration))
                 }
+                .font(.auraTimestamp)
+                .foregroundStyle(Color.textSecondary)
+            }
+            
+            AuraButton("Play Queue", systemImage: "play.fill", variant: .primary) {
+                let names = ["track1", "track2", "track3"]   // your 3 test files
+                let urls = names.compactMap { Bundle.main.url(forResource: $0, withExtension: "mp3") }
+                player.load(queue: urls)
             }
             
             HStack(spacing: AuraSpacing.lg) {
-                AuraButton(systemImage: "pause.fill", variant: .icon) { engine.pause() }
-                AuraButton(systemImage: "play.fill",  variant: .icon) { engine.resume() }
-                AuraButton(systemImage: "stop.fill",  variant: .icon) { engine.stop() }
+                AuraButton(systemImage: "backward.fill", variant: .icon) { player.skipPrevious() }
+                AuraButton(systemImage: player.isPlaying ? "pause.fill" : "play.fill", variant: .icon) {
+                    player.togglePlayPause()
+                }
+                AuraButton(systemImage: "forward.fill", variant: .icon) { player.skipNext() }
             }
         }
         .padding(AuraSpacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.background)
         .preferredColorScheme(.dark)
+    }
+    
+    private func timeString(_ t: TimeInterval) -> String {
+        let s = Int(t)
+        return String(format: "%d:%02d", s / 60, s % 60)
     }
 }
 
