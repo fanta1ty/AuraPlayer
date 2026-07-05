@@ -2,6 +2,8 @@
 //  AuraFonts.swift
 //  AuraPlayer
 //
+//  Created by Thinh Nguyen on 4/7/26.
+//
 //  Typography system — SF Pro (system), premium audiophile feel.
 //  Swap `Aura.fontDesign` to .rounded to warm up the entire app in one edit.
 //

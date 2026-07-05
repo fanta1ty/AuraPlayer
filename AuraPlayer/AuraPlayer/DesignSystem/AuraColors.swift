@@ -2,6 +2,8 @@
 //  AuraColors.swift
 //  AuraPlayer
 //
+//  Created by Thinh Nguyen on 4/7/26.
+//
 //  Design tokens — Dark audiophile palette (see DESIGN_NOTES.md).
 //  Accent: electric teal-cyan (#1CE3CE). Dark mode only for v1.
 //

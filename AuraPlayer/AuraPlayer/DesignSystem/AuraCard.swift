@@ -2,6 +2,8 @@
 //  AuraCard.swift
 //  AuraPlayer
 //
+//  Created by Thinh Nguyen on 4/7/26.
+//
 //  Dark frosted-glass container. Wraps any content in a themed surface.
 //
 

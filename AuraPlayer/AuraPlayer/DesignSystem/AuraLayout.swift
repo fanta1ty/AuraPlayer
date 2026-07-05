@@ -2,6 +2,8 @@
 //  AuraLayout.swift
 //  AuraPlayer
 //
+//  Created by Thinh Nguyen on 4/7/26.
+//
 //  Spacing, corner radius, and shadow/glow constants. Airy scale for a premium feel.
 //
 

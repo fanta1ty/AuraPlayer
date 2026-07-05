@@ -2,6 +2,8 @@
 //  AuraButton.swift
 //  AuraPlayer
 //
+//  Created by Thinh Nguyen on 4/7/26.
+//
 //  Reusable button with primary / secondary / icon-only variants.
 //  Uses only design tokens — no hardcoded colors, fonts, or metrics.
 //

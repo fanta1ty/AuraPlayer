@@ -2,6 +2,8 @@
 //  AuraProgressRing.swift
 //  AuraPlayer
 //
+//  Created by Thinh Nguyen on 4/7/26.
+//
 //  Circular progress indicator with glowing accent stroke.
 //  Use for sleep timer, buffering/loading, or download progress.
 //

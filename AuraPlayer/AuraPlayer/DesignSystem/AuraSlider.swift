@@ -2,6 +2,8 @@
 //  AuraSlider.swift
 //  AuraPlayer
 //
+//  Created by Thinh Nguyen on 4/7/26.
+//
 //  Custom seek / EQ slider. Accent fill + glowing thumb, smooth drag.
 //
 
