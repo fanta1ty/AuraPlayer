@@ -5,101 +5,73 @@
 //  Created by mobile on 5/7/26.
 //
 //  Observable playback state for the UI. Polls AuraAudioEngine and
-//  publishes currentTime / duration / progress / isPlaying.
+//  publishes currentTime / duration / progress / isPlaying, and owns the queue.
 //
 
 import Foundation
 import Combine
 
+enum RepeatMode {
+    case none, one, all
+}
+
 final class PlayerViewModel: ObservableObject {
+
+    // MARK: - Published state
+
     @Published var currentTime: TimeInterval = 0
     @Published var duration: TimeInterval = 0
-    @Published var progress: Double = 0 // 0...1, for AuraSlider
-    @Published var isPlaying: Bool = false
-    
+    @Published var progress: Double = 0            // 0...1, for AuraSlider
+    @Published var isPlaying = false
+
+    @Published var queue: [URL] = []               // original order (never mutated by shuffle)
+    @Published private(set) var order: [Int] = []  // play sequence: indices into `queue`
+    @Published private(set) var position = 0       // index into `order`
+    @Published var repeatMode: RepeatMode = .none
+    @Published private(set) var isShuffled = false
+
+    // MARK: - Dependencies
+
     private let engine = AuraAudioEngine.shared
     private var timer: Timer?
-    
-    // MARK: - Queue
-    @Published var queue: [URL] = []
-    @Published private(set) var currentIndex = 0
-    
-    /// Whether skip wraps at the ends. Left off for now - repeat-all (Task 2.6)
-    /// owns looping.
-    var wrapAround = false
-    
+
     var currentTrackURL: URL? {
-        queue.indices.contains(currentIndex) ? queue[currentIndex] : nil
+        guard order.indices.contains(position),
+              queue.indices.contains(order[position]) else { return nil }
+        return queue[order[position]]
     }
-    
-    /// Load a queue and start playing at `index`
+
+    // MARK: - Loading
+
+    /// Load a queue and start playing at `index`.
     func load(queue: [URL], startAt index: Int = 0) {
         self.queue = queue
-        self.currentIndex = index
-        engine.onTrackFinished = { [weak self] in
-            self?.handleTrackFinished()
-        }
+        self.order = Array(queue.indices)
+        self.position = index
+        self.isShuffled = false
+        engine.onTrackFinished = { [weak self] in self?.handleTrackFinished() }
         playCurrent()
     }
-    
-    func skipNext() {
-        guard !queue.isEmpty else { return }
-        if currentIndex < queue.count - 1 {
-            currentIndex += 1
-            playCurrent()
-        } else if wrapAround {
-            currentIndex = 0
-            playCurrent()
-        } else {
-            stop()   // end of queue
-        }
-    }
-    
-    func skipPrevious() {
-        guard !queue.isEmpty else { return }
-        // Standard behavior: restart current track if we're more than 3s in.
-        if currentTime > 3 {
-            seek(toProgress: 0)
-            return
-        }
-        if currentIndex > 0 {
-            currentIndex -= 1
-            playCurrent()
-        } else if wrapAround {
-            currentIndex = queue.count - 1
-            playCurrent()
-        } else {
-            seek(toProgress: 0)   // already first track → just restart it
-        }
-    }
-    
-    private func handleTrackFinished() {
-        skipNext()   // auto-advance
-    }
-    
+
     private func playCurrent() {
         guard let url = currentTrackURL else { return }
-        play(url: url) // reuses your existing play(url:) (sets duration, starts ticking)
+        play(url: url)
     }
-    
+
     // MARK: - Transport
-    
+
     func play(url: URL) {
         engine.play(url: url)
         duration = engine.duration
         isPlaying = true
         startTicking()
     }
-    
+
     func togglePlayPause() {
-        if engine.isPlaying {
-            engine.pause()
-        } else {
-            engine.resume()
-        }
+        engine.isPlaying ? engine.pause() : engine.resume()
         isPlaying = engine.isPlaying
     }
-    
+
     func stop() {
         engine.stop()
         isPlaying = false
@@ -107,33 +79,100 @@ final class PlayerViewModel: ObservableObject {
         progress = 0
         stopTicking()
     }
-    
-    /// Called by the UI while scrubbing the slider (progress is 0...1)
+
+    /// Called by the UI while scrubbing the slider (progress is 0...1).
     func seek(toProgress p: Double) {
         engine.seek(to: p * duration)
         currentTime = p * duration
         progress = p
     }
-    
+
+    // MARK: - Queue navigation
+
+    func skipNext() {
+        guard !queue.isEmpty else { return }
+        if position < order.count - 1 {
+            position += 1
+            playCurrent()
+        } else if repeatMode == .all {
+            position = 0
+            playCurrent()
+        } else {
+            stop()                       // end of queue
+        }
+    }
+
+    func skipPrevious() {
+        guard !queue.isEmpty else { return }
+        if currentTime > 3 {             // restart current track if >3s in
+            seek(toProgress: 0)
+            return
+        }
+        if position > 0 {
+            position -= 1
+            playCurrent()
+        } else if repeatMode == .all {
+            position = order.count - 1
+            playCurrent()
+        } else {
+            seek(toProgress: 0)
+        }
+    }
+
+    private func handleTrackFinished() {
+        switch repeatMode {
+        case .one:
+            playCurrent()                // replay same track indefinitely
+        case .none, .all:
+            skipNext()                   // .all wraps, .none stops at end
+        }
+    }
+
+    // MARK: - Shuffle & Repeat
+
+    func toggleShuffle() {
+        guard !queue.isEmpty else { isShuffled.toggle(); return }
+        let currentTrack = order.indices.contains(position) ? order[position] : 0
+
+        if !isShuffled {
+            // Turn ON: keep current track first, shuffle the rest.
+            var rest = Array(queue.indices).filter { $0 != currentTrack }
+            rest.shuffle()
+            order = [currentTrack] + rest
+            position = 0
+        } else {
+            // Turn OFF: restore original order, stay on the same track.
+            order = Array(queue.indices)
+            position = currentTrack
+        }
+        isShuffled.toggle()
+    }
+
+    func cycleRepeatMode() {
+        switch repeatMode {
+        case .none: repeatMode = .one
+        case .one:  repeatMode = .all
+        case .all:  repeatMode = .none
+        }
+    }
+
     // MARK: - Ticking
-    
+
     private func startTicking() {
         stopTicking()
-        
         // Fires on the main run loop, so UI updates are safe.
-        timer = Timer
-            .scheduledTimer(withTimeInterval: 0.5, repeats: true, block: { [weak self] _ in
-                guard let self else { return }
-                self.currentTime = self.engine.currentTime
-                self.isPlaying = self.engine.isPlaying
-                self.progress = self.duration > 0 ? self.currentTime / self.duration : 0
-            })
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.currentTime = self.engine.currentTime
+            self.isPlaying = self.engine.isPlaying
+            self.progress = self.duration > 0 ? self.currentTime / self.duration : 0
+        }
     }
-    
+
     private func stopTicking() {
         timer?.invalidate()
         timer = nil
     }
-    
+
     deinit { stopTicking() }
 }

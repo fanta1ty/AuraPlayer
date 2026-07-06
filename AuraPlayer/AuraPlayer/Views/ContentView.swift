@@ -45,6 +45,29 @@ struct ContentView: View {
                 }
                 AuraButton(systemImage: "forward.fill", variant: .icon) { player.skipNext() }
             }
+            
+            HStack(spacing: AuraSpacing.xl) {
+                // Shuffle
+                Image(systemName: "shuffle")
+                    .font(.auraHeadline)
+                    .foregroundStyle(
+                        player.isShuffled ? Color.accent : Color.textSecondary
+                    )
+                    .onTapGesture {
+                        player.toggleShuffle()
+                    }
+                
+                // Repeat (icon reflects mode)
+                Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
+                    .font(.auraHeadline)
+                    .foregroundStyle(
+                        player.repeatMode == .none ? Color.textSecondary
+                        : Color.accent
+                    )
+                    .onTapGesture {
+                        player.cycleRepeatMode()
+                    }
+            }
         }
         .padding(AuraSpacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
