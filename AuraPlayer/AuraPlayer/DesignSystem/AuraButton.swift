@@ -99,6 +99,16 @@ private struct AuraButtonStyle: ButtonStyle {
     }
 }
 
+/// Small scale + fade feedback for icon-style tap targets.
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.82 : 1.0)
+            .opacity(configuration.isPressed ? 0.7 : 1.0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
 #Preview("AuraButton") {
     VStack(spacing: AuraSpacing.lg) {
         AuraButton("Play All", systemImage: "play.fill", variant: .primary) {}

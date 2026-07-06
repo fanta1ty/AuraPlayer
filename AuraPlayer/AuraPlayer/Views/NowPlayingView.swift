@@ -139,41 +139,61 @@ struct NowPlayingView: View {
     
     private var controls: some View {
         HStack {
-            Image(systemName: "shuffle")
-                .foregroundStyle(player.isShuffled ? Color.accent : Color.textSecondary)
-                .onTapGesture { player.toggleShuffle() }
+            Button {
+                player.toggleShuffle()
+            } label: {
+                Image(systemName: "shuffle")
+                    .foregroundStyle(player.isShuffled ? Color.accent : Color.textSecondary)
+            }
+            .buttonStyle(ScaleButtonStyle())
             
             Spacer()
             
-            Image(systemName: "backward.fill")
-                .foregroundStyle(Color.textPrimary)
-                .onTapGesture { player.skipPrevious() }
-            
+            Button {
+                player.skipPrevious()
+            } label: {
+                Image(systemName: "backward.fill")
+                    .foregroundStyle(Color.textPrimary)
+            }
+            .buttonStyle(ScaleButtonStyle())
+                
             Spacer()
             
             // Large play/pause (glowing accent)
-            Circle()
-                .fill(Color.accent)
-                .frame(width: 72, height: 72)
-                .overlay(
-                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(Color.background)
-                )
-                .glowEffect()
-                .onTapGesture { player.togglePlayPause() }
+            Button {
+                player.togglePlayPause()
+            } label: {
+                Circle()
+                    .fill(Color.accent)
+                    .frame(width: 72, height: 72)
+                    .overlay(
+                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 28))
+                            .foregroundStyle(Color.background)
+                    )
+                    .glowEffect()
+            }
+            .buttonStyle(ScaleButtonStyle())
             
             Spacer()
             
-            Image(systemName: "forward.fill")
-                .foregroundStyle(Color.textPrimary)
-                .onTapGesture { player.skipNext() }
+            Button {
+                player.skipNext()
+            } label: {
+                Image(systemName: "forward.fill")
+                    .foregroundStyle(Color.textPrimary)
+            }
+            .buttonStyle(ScaleButtonStyle())
             
             Spacer()
             
-            Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
-                .foregroundStyle(player.repeatMode == .none ? Color.textSecondary : Color.accent)
-                .onTapGesture { player.cycleRepeatMode() }
+            Button {
+                player.cycleRepeatMode()
+            } label: {
+                Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
+                    .foregroundStyle(player.repeatMode == .none ? Color.textSecondary : Color.accent)
+            }
+            .buttonStyle(ScaleButtonStyle())
         }
         .font(.auraTitle)
     }

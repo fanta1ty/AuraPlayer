@@ -12,7 +12,7 @@ import AVFoundation
 import UIKit
 import Combine
 
-enum RepeatMode {
+enum RepeatMode: Int {
     case none, one, all
 }
 
@@ -28,8 +28,17 @@ final class PlayerViewModel: ObservableObject {
     @Published var queue: [URL] = []               // original order (never mutated by shuffle)
     @Published private(set) var order: [Int] = []  // play sequence: indices into `queue`
     @Published private(set) var position = 0       // index into `order`
-    @Published var repeatMode: RepeatMode = .none
-    @Published private(set) var isShuffled = false
+    @Published var repeatMode: RepeatMode = .none {
+        didSet {
+            UserDefaults.standard
+                .set(repeatMode.rawValue, forKey: Keys.repeatMode)
+        }
+    }
+    @Published private(set) var isShuffled = false {
+        didSet {
+            UserDefaults.standard.set(isShuffled, forKey: Keys.isShuffled)
+        }
+    }
     
     @Published var currentTitle: String = ""
     @Published var currentArtist: String = ""
@@ -46,16 +55,37 @@ final class PlayerViewModel: ObservableObject {
               queue.indices.contains(order[position]) else { return nil }
         return queue[order[position]]
     }
+    
+    private enum Keys {
+        static let repeatMode = "player.repeatMode"
+        static let isShuffled = "player.isShuffled"
+    }
+    
+    init() {
+        let defaults = UserDefaults.standard
+        repeatMode = RepeatMode(
+            rawValue: defaults.integer(forKey: Keys.repeatMode)
+        ) ?? .none
+        isShuffled = defaults.bool(forKey: Keys.isShuffled)
+    }
 
     // MARK: - Loading
 
     /// Load a queue and start playing at `index`.
     func load(queue: [URL], startAt index: Int = 0) {
         self.queue = queue
-        self.order = Array(queue.indices)
-        self.position = index
-        self.isShuffled = false
         engine.onTrackFinished = { [weak self] in self?.handleTrackFinished() }
+        
+        let start = queue.indices.contains(index) ? index : 0
+        if isShuffled {
+            var rest = Array(queue.indices).filter { $0 != start }
+            rest.shuffle()
+            order = [start] + rest
+            position = 0
+        } else {
+            order = Array(queue.indices)
+            position = start
+        }
         playCurrent()
     }
 
