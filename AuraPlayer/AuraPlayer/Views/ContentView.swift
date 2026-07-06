@@ -8,79 +8,53 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var player = PlayerViewModel()
+    @EnvironmentObject var player: PlayerViewModel
+    @State private var showPlayer = false
     
     var body: some View {
-        VStack(spacing: AuraSpacing.xl) {
-            Text("AuraPlayer")
-                .font(.auraDisplay)
-                .foregroundStyle(Color.textPrimary)
+        ZStack(alignment: .bottom) {
+            Color.background.ignoresSafeArea()
             
-            // Progress slider (scrubbing seeks)
-            VStack(spacing: AuraSpacing.sm) {
-                AuraSlider(value: Binding(get: {
-                    player.progress
-                }, set: {
-                    player.seek(toProgress: $0)
-                }))
-                HStack {
-                    Text(timeString(player.currentTime))
-                    Spacer()
-                    Text(timeString(player.duration))
-                }
-                .font(.auraTimestamp)
-                .foregroundStyle(Color.textSecondary)
-            }
-            
-            AuraButton("Play Queue", systemImage: "play.fill", variant: .primary) {
-                let names = ["track1", "track2", "track3"]   // your 3 test files
-                let urls = names.compactMap { Bundle.main.url(forResource: $0, withExtension: "mp3") }
-                player.load(queue: urls)
-            }
-            
-            HStack(spacing: AuraSpacing.lg) {
-                AuraButton(systemImage: "backward.fill", variant: .icon) { player.skipPrevious() }
-                AuraButton(systemImage: player.isPlaying ? "pause.fill" : "play.fill", variant: .icon) {
-                    player.togglePlayPause()
-                }
-                AuraButton(systemImage: "forward.fill", variant: .icon) { player.skipNext() }
-            }
-            
-            HStack(spacing: AuraSpacing.xl) {
-                // Shuffle
-                Image(systemName: "shuffle")
-                    .font(.auraHeadline)
-                    .foregroundStyle(
-                        player.isShuffled ? Color.accent : Color.textSecondary
-                    )
-                    .onTapGesture {
-                        player.toggleShuffle()
-                    }
+            VStack(spacing: AuraSpacing.xl) {
+                Text("AuraPlayer")
+                    .font(.auraDisplay)
+                    .foregroundStyle(Color.textPrimary)
                 
-                // Repeat (icon reflects mode)
-                Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
-                    .font(.auraHeadline)
-                    .foregroundStyle(
-                        player.repeatMode == .none ? Color.textSecondary
-                        : Color.accent
-                    )
-                    .onTapGesture {
-                        player.cycleRepeatMode()
-                    }
+                AuraButton("Play Queue", systemImage: "play.fill", variant: .primary) {
+                    let names = ["track1", "track2", "track3"]   // your 3 test files
+                    let urls = names.compactMap { Bundle.main.url(forResource: $0, withExtension: "mp3") }
+                    player.load(queue: urls)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            if player.hasTrack {
+                AuraNowPlayingBar { showPlayer = true }
+                    .padding(.horizontal, AuraSpacing.md)
+                    .padding(.bottom, AuraSpacing.sm)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(AuraSpacing.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.background)
+        .animation(.spring(duration: 0.35), value: player.hasTrack)
         .preferredColorScheme(.dark)
-    }
-    
-    private func timeString(_ t: TimeInterval) -> String {
-        let s = Int(t)
-        return String(format: "%d:%02d", s / 60, s % 60)
+        .sheet(isPresented: $showPlayer) {
+            // Placeholder — replaced by NowPlayingView in Task 3.2.
+            VStack(spacing: AuraSpacing.md) {
+                Text(player.currentTitle)
+                    .font(.auraTitle)
+                    .foregroundStyle(Color.textPrimary)
+                Text(player.currentArtist)
+                    .font(.auraBody)
+                    .foregroundStyle(Color.textSecondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.background)
+            .preferredColorScheme(.dark)
+        }
     }
 }
 
 #Preview {
     ContentView()
+        .environmentObject(PlayerViewModel())
 }

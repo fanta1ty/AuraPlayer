@@ -8,6 +8,8 @@
 //  publishes currentTime / duration / progress / isPlaying, and owns the queue.
 //
 
+import AVFoundation
+import UIKit
 import Foundation
 import Combine
 
@@ -29,6 +31,11 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var position = 0       // index into `order`
     @Published var repeatMode: RepeatMode = .none
     @Published private(set) var isShuffled = false
+    
+    @Published var currentTitle: String = ""
+    @Published var currentArtist: String = ""
+    @Published var currentArtwork: UIImage?
+    @Published private(set) var hasTrack = false
 
     // MARK: - Dependencies
 
@@ -64,6 +71,8 @@ final class PlayerViewModel: ObservableObject {
         engine.play(url: url)
         duration = engine.duration
         isPlaying = true
+        hasTrack = true
+        loadMetadata(for: url)
         startTicking()
     }
 
@@ -77,6 +86,10 @@ final class PlayerViewModel: ObservableObject {
         isPlaying = false
         currentTime = 0
         progress = 0
+        hasTrack = false
+        currentTitle = ""
+        currentArtist = ""
+        currentArtwork = nil
         stopTicking()
     }
 
@@ -153,6 +166,41 @@ final class PlayerViewModel: ObservableObject {
         case .none: repeatMode = .one
         case .one:  repeatMode = .all
         case .all:  repeatMode = .none
+        }
+    }
+    
+    // MARK: - Metadata
+    
+    private func loadMetadata(for url: URL) {
+        // Immediate fallback so the UI never shows empty.
+        currentTitle = url.deletingPathExtension().lastPathComponent
+        currentArtist = "Unknown Artist"
+        currentArtwork = nil
+        
+        let asset = AVURLAsset(url: url)
+        Task { [weak self] in
+            guard let items = try? await asset.load(.commonMetadata) else { return }
+            var title: String?
+            var artist: String?
+            var artwork: UIImage?
+            
+            for item in items {
+                switch item.commonKey {
+                case .commonKeyTitle: title = try? await item.load(.stringValue)
+                case .commonKeyArtist: artist = try? await item.load(.stringValue)
+                case .commonKeyArtwork:
+                    if let data = try? await item.load(.dataValue) {
+                        artwork = UIImage(data: data)
+                    }
+                default: break
+                }
+            }
+            
+            await MainActor.run {
+                if let title, !title.isEmpty { self?.currentTitle = title }
+                if let artist, !artist.isEmpty { self?.currentArtist = artist }
+                if let artwork { self?.currentArtwork = artwork }
+            }
         }
     }
 

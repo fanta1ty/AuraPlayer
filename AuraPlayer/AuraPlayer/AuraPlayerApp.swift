@@ -9,6 +9,8 @@ import SwiftUI
 
 @main
 struct AuraPlayerApp: App {
+    @StateObject private var player = PlayerViewModel()
+    
     init() {
         AudioSessionManager.shared.configure()  // Session first
         AuraAudioEngine.shared.start()          // then engine
@@ -17,6 +19,7 @@ struct AuraPlayerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(player)
         }
     }
 }
