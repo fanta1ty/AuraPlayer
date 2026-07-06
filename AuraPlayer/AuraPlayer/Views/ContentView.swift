@@ -38,18 +38,10 @@ struct ContentView: View {
         .animation(.spring(duration: 0.35), value: player.hasTrack)
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showPlayer) {
-            // Placeholder — replaced by NowPlayingView in Task 3.2.
-            VStack(spacing: AuraSpacing.md) {
-                Text(player.currentTitle)
-                    .font(.auraTitle)
-                    .foregroundStyle(Color.textPrimary)
-                Text(player.currentArtist)
-                    .font(.auraBody)
-                    .foregroundStyle(Color.textSecondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.background)
-            .preferredColorScheme(.dark)
+            NowPlayingView()
+                .environmentObject(player)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
         }
     }
 }

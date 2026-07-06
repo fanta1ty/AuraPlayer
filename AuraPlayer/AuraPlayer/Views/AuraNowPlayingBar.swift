@@ -64,7 +64,9 @@ struct AuraNowPlayingBar: View {
     @ViewBuilder private var artwork: some View {
         Group {
             if let art = player.currentArtwork {
-                
+                Image(uiImage: art)
+                    .resizable()
+                    .scaledToFill()
             } else {
                 Color.surfaceElevated
                     .overlay(
