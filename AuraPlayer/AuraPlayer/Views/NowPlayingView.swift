@@ -26,6 +26,7 @@ struct NowPlayingView: View {
                 trackInfo
                 seekBar
                 controls
+                volumeControls
             }
             .padding(.horizontal, AuraSpacing.xl)
             .padding(.top, AuraSpacing.md)
@@ -196,6 +197,26 @@ struct NowPlayingView: View {
             .buttonStyle(ScaleButtonStyle())
         }
         .font(.auraTitle)
+    }
+    
+    // MARK: - Volume & output
+    
+    private var volumeControls: some View {
+        HStack(spacing: AuraSpacing.md) {
+            Image(systemName: "speaker.fill")
+                .font(.auraCaption)
+                .foregroundStyle(Color.textSecondary)
+            
+            SystemVolumeSlider()
+                .frame(height: 28)
+            
+            Image(systemName: "speaker.wave.3.fill")
+                .font(.auraCaption)
+                .foregroundStyle(Color.textSecondary)
+            
+            AirPlayButton()
+                .frame(width: 32, height: 32)
+        }
     }
     
     // MARK: - Helpers
