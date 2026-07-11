@@ -14,6 +14,8 @@ struct NowPlayingView: View {
     @EnvironmentObject var player: PlayerViewModel
     @Environment(\.dismiss) private var dismiss
     
+    @State private var showQueue = false
+    
     var body: some View {
         ZStack {
             background
@@ -33,6 +35,21 @@ struct NowPlayingView: View {
             .padding(.bottom, AuraSpacing.xxl)
         }
         .preferredColorScheme(.dark)
+        .overlay(alignment: .topTrailing) {
+            Button {
+                showQueue = true
+            } label: {
+                Image(systemName: "list.bullet")
+                    .font(.auraTitle)
+                    .foregroundStyle(Color.textPrimary)
+                    .padding(AuraSpacing.lg)
+            }
+            .buttonStyle(ScaleButtonStyle())
+        }
+        .sheet(isPresented: $showQueue) {
+            QueueView()
+                .environmentObject(player)
+        }
     }
     
     // MARK: - Background (full-bleed blurred art)

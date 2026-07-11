@@ -11,6 +11,7 @@
 import AVFoundation
 import UIKit
 import Combine
+import SwiftUI
 
 enum RepeatMode: Int {
     case none, one, all
@@ -197,6 +198,61 @@ final class PlayerViewModel: ObservableObject {
         case .all:  repeatMode = .none
         }
     }
+    
+    // MARK: - Queue editing (for QueueView)
+    
+    struct QueueItem: Identifiable {
+        let id: Int             // stable = queue index (unique even with duplicate URLs)
+        let url: URL
+        let orderIndex: Int     // position within `order`
+        let isCurrent: Bool
+        var title: String { url.deletingPathExtension().lastPathComponent }
+    }
+    
+    /// The play sequence as display items.
+    var queueItems: [QueueItem] {
+        order.enumerated().map { i, qIdx in
+            QueueItem(
+                id: qIdx,
+                url: queue[qIdx],
+                orderIndex: i,
+                isCurrent: i == position
+            )
+        }
+    }
+    
+    func playQueueItem(at orderIndex: Int) {
+        guard order.indices.contains(orderIndex) else { return }
+        position = orderIndex
+        playCurrent()
+    }
+    
+    func moveQueueItem(from source: IndexSet, to destination: Int) {
+        let currentQIdx = order.indices.contains(position) ? order[position] : nil
+        order.move(fromOffsets: source, toOffset: destination)
+        if let cur = currentQIdx, let newPos = order.firstIndex(of: cur) {
+            position = newPos // keep pointing at the playing track
+        }
+    }
+    
+    func removeQueueItems(at offsets: IndexSet) {
+        let removingCurrent = offsets.contains(position)
+        let currentQIdx = order.indices.contains(position) ? order[position] : nil
+        
+        order.remove(atOffsets: offsets)
+        
+        if order.isEmpty {
+            stop()
+        } else if removingCurrent {
+            position = min(position, order.count - 1)
+            playCurrent() // current was removed → play the new one at this slot
+        } else if let cur = currentQIdx, let newPos = order.firstIndex(
+            of: cur
+        ) {
+            position = newPos
+        }
+    }
+    
     
     // MARK: - Metadata
     
