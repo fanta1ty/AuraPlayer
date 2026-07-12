@@ -50,6 +50,7 @@ final class PlayerViewModel: ObservableObject {
 
     private let engine = AuraAudioEngine.shared
     private var timer: Timer?
+    private var trackIndex: [URL: Track] = [:]
 
     var currentTrackURL: URL? {
         guard order.indices.contains(position),
@@ -89,6 +90,16 @@ final class PlayerViewModel: ObservableObject {
         }
         playCurrent()
     }
+    
+    /// Load a list of already-scanned tracks as the queue.
+    func load(tracks: [Track], startAt index: Int = 0) {
+        trackIndex = Dictionary(tracks.map({
+            ($0.url, $0)
+        }), uniquingKeysWith: { a, _ in
+            a
+        })
+        load(queue: tracks.map(\.url), startAt: index)
+    }
 
     private func playCurrent() {
         guard let url = currentTrackURL else { return }
@@ -102,7 +113,17 @@ final class PlayerViewModel: ObservableObject {
         duration = engine.duration
         isPlaying = true
         hasTrack = true
-        loadMetadata(for: url)
+        
+        if let track = trackIndex[url] {
+            currentTitle = track.title
+            currentArtist = track.artist
+            currentArtwork = track.artworkData.flatMap({
+                UIImage(data: $0)
+            })
+        } else {
+            loadMetadata(for: url) // fallback for the debug/bundle path
+        }
+        
         startTicking()
     }
 
