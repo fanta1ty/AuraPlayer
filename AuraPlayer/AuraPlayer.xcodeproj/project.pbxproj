@@ -29,9 +29,29 @@
 		75F86AA02FF9329600181E83 /* AuraPlayerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AuraPlayerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		75A2BE583003546C00858C21 /* Exceptions for "AuraPlayerUITests" folder in "AuraPlayerUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 75F86A9F2FF9329600181E83 /* AuraPlayerUITests */;
+		};
+		75A2BE5A3003555D00858C21 /* Exceptions for "AuraPlayer" folder in "AuraPlayer" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 75F86A882FF9329500181E83 /* AuraPlayer */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		75F86A8B2FF9329500181E83 /* AuraPlayer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				75A2BE5A3003555D00858C21 /* Exceptions for "AuraPlayer" folder in "AuraPlayer" target */,
+			);
 			path = AuraPlayer;
 			sourceTree = "<group>";
 		};
@@ -42,6 +62,9 @@
 		};
 		75F86AA32FF9329600181E83 /* AuraPlayerUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				75A2BE583003546C00858C21 /* Exceptions for "AuraPlayerUITests" folder in "AuraPlayerUITests" target */,
+			);
 			path = AuraPlayerUITests;
 			sourceTree = "<group>";
 		};
@@ -400,6 +423,8 @@
 				DEVELOPMENT_TEAM = 5934F7X3NB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AuraPlayer/Info.plist;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -433,6 +458,8 @@
 				DEVELOPMENT_TEAM = 5934F7X3NB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AuraPlayer/Info.plist;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -507,6 +534,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5934F7X3NB;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AuraPlayerUITests/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.thinh.AuraPlayerUITests;
@@ -528,6 +556,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5934F7X3NB;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AuraPlayerUITests/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.thinh.AuraPlayerUITests;
