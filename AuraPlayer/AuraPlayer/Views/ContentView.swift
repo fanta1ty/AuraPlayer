@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var player: PlayerViewModel
     @EnvironmentObject var library: LibraryViewModel
+    @EnvironmentObject var stats: TrackStatsViewModel
     
     @State private var showPlayer = false
     
@@ -48,9 +49,19 @@ struct ContentView: View {
         }
         .animation(.spring(duration: 0.35), value: player.hasTrack)
         .preferredColorScheme(.dark)
-        .task { if library.tracks.isEmpty { await library.scan() } }
+        .task {
+            player.onPlayedThreshold = { url in
+                stats.incrementPlayCount(for: url)
+            }
+            
+            if library.tracks.isEmpty {
+                await library.scan()
+            }
+        }
         .sheet(isPresented: $showPlayer) {
-            NowPlayingView().environmentObject(player)
+            NowPlayingView()
+                .environmentObject(player)
+                .environmentObject(stats)
         }
     }
 }
@@ -60,4 +71,5 @@ struct ContentView: View {
         .environmentObject(PlayerViewModel())
         .environmentObject(LibraryViewModel())
         .environmentObject(PlaylistViewModel())
+        .environmentObject(TrackStatsViewModel())
 }

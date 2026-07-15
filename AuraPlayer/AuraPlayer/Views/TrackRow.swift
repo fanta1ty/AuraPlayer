@@ -12,6 +12,7 @@ import SwiftUI
 struct TrackRow: View {
     let track: Track
     var isPlaying: Bool = false
+    var rating: Int = 0
     
     var body: some View {
         HStack(spacing: AuraSpacing.md) {
@@ -28,6 +29,10 @@ struct TrackRow: View {
                     .font(.auraCaption)
                     .foregroundStyle(Color.textSecondary)
                     .lineLimit(1)
+                
+                if rating > 0 {
+                    StarRatingView(rating: rating, size: 9)
+                }
             }
             
             Spacer()

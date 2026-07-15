@@ -51,6 +51,11 @@ final class PlayerViewModel: ObservableObject {
     private let engine = AuraAudioEngine.shared
     private var timer: Timer?
     private var trackIndex: [URL: Track] = [:]
+    
+    /// Fires once per play when the track passes the 30s threshold.
+    var onPlayedThreshold: ((URL) -> Void)?
+    private var countedThisPlay = false
+    private let playCountThreshold: TimeInterval = 30
 
     var currentTrackURL: URL? {
         guard order.indices.contains(position),
@@ -113,6 +118,7 @@ final class PlayerViewModel: ObservableObject {
         duration = engine.duration
         isPlaying = true
         hasTrack = true
+        countedThisPlay = false
         
         if let track = trackIndex[url] {
             currentTitle = track.title
@@ -320,6 +326,13 @@ final class PlayerViewModel: ObservableObject {
             self.currentTime = self.engine.currentTime
             self.isPlaying = self.engine.isPlaying
             self.progress = self.duration > 0 ? self.currentTime / self.duration : 0
+            
+            if !self.countedThisPlay,
+               self.currentTime >= self.playCountThreshold,
+               let url = self.currentTrackURL {
+                self.countedThisPlay = true
+                self.onPlayedThreshold?(url)
+            }
         }
     }
 

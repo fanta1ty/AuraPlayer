@@ -12,6 +12,8 @@ import SwiftUI
 
 struct NowPlayingView: View {
     @EnvironmentObject var player: PlayerViewModel
+    @EnvironmentObject var stats: TrackStatsViewModel
+    
     @Environment(\.dismiss) private var dismiss
     
     @State private var showQueue = false
@@ -125,11 +127,29 @@ struct NowPlayingView: View {
                 .foregroundStyle(Color.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
+            
             Text(player.currentArtist)
                 .font(.auraHeadline)
                 .foregroundStyle(Color.textSecondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
+            
+            if let url = player.currentTrackURL {
+                HStack(spacing: AuraSpacing.sm) {
+                    StarRatingView(
+                        rating: stats.rating(for: url),
+                        size: 15,
+                        interactive: true
+                    ) { newRating in
+                        stats.setRating(newRating, for: url)
+                    }
+                    Text(
+                        "\(stats.playCount(for: url)) play\(stats.playCount(for: url) == 1 ? "" : "s")"
+                    )
+                    .font(.auraCaption)
+                    .foregroundStyle(Color.textTertiary)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

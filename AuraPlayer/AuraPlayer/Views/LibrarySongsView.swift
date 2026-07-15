@@ -13,6 +13,7 @@ struct LibrarySongsView: View {
     @EnvironmentObject var player: PlayerViewModel
     @EnvironmentObject var library: LibraryViewModel
     @EnvironmentObject var playlists: PlaylistViewModel
+    @EnvironmentObject var stats: TrackStatsViewModel
     
     @State private var searchText = ""
     @State private var sort: SortOrder = .title
@@ -89,7 +90,8 @@ struct LibrarySongsView: View {
             ForEach(displayedTracks) { track in
                 TrackRow(
                     track: track,
-                    isPlaying: player.currentTrackURL == track.url
+                    isPlaying: player.currentTrackURL == track.url,
+                    rating: stats.rating(for: track.url)
                 )
                 .contentShape(Rectangle())
                 .onTapGesture { play(track) }
