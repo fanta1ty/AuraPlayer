@@ -9,6 +9,8 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var player: PlayerViewModel
+    @EnvironmentObject var library: LibraryViewModel
+    
     @State private var showPlayer = false
     
     var body: some View {
@@ -28,6 +30,11 @@ struct ContentView: View {
                     .tabItem {
                         Label("Artists", systemImage: "music.mic")
                     }
+                
+                PlaylistsView()
+                    .tabItem {
+                        Label("Playlists", systemImage: "music.note.list")
+                    }
             }
             .tint(Color.accent)
             
@@ -41,6 +48,7 @@ struct ContentView: View {
         }
         .animation(.spring(duration: 0.35), value: player.hasTrack)
         .preferredColorScheme(.dark)
+        .task { if library.tracks.isEmpty { await library.scan() } }
         .sheet(isPresented: $showPlayer) {
             NowPlayingView().environmentObject(player)
         }
@@ -50,4 +58,6 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environmentObject(PlayerViewModel())
+        .environmentObject(LibraryViewModel())
+        .environmentObject(PlaylistViewModel())
 }

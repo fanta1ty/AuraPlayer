@@ -11,7 +11,8 @@ import SwiftUI
 
 struct LibrarySongsView: View {
     @EnvironmentObject var player: PlayerViewModel
-    @StateObject private var library = LibraryViewModel()
+    @EnvironmentObject var library: LibraryViewModel
+    @EnvironmentObject var playlists: PlaylistViewModel
     
     @State private var searchText = ""
     @State private var sort: SortOrder = .title
@@ -81,18 +82,27 @@ struct LibrarySongsView: View {
             .searchable(text: $searchText, prompt: "Search songs or artists")
         }
         .preferredColorScheme(.dark)
-        .task {
-            if library.tracks.isEmpty { await library.scan() }
-        }
     }
     
     private var songList: some View {
         List {
             ForEach(displayedTracks) { track in
-                TrackRow(track: track, isPlaying: player.currentTrackURL == track.url)
-                    .contentShape(Rectangle())
-                    .onTapGesture { play(track) }
-                    .listRowBackground(Color.background)
+                TrackRow(
+                    track: track,
+                    isPlaying: player.currentTrackURL == track.url
+                )
+                .contentShape(Rectangle())
+                .onTapGesture { play(track) }
+                .contextMenu {
+                    Menu("Add to Playlist") {
+                        ForEach(playlists.playlists) { playlist in
+                            Button(playlist.name) {
+                                playlists.add(track: track, to: playlist)
+                            }
+                        }
+                    }
+                }
+                .listRowBackground(Color.background)
             }
         }
         .listStyle(.plain)

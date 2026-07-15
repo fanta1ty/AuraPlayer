@@ -11,7 +11,7 @@ import SwiftUI
 
 struct LibraryAlbumsView: View {
     @EnvironmentObject var player: PlayerViewModel
-    @StateObject private var library = LibraryViewModel()
+    @EnvironmentObject var library: LibraryViewModel
     
     private let columns = [
         GridItem(.flexible(), spacing: AuraSpacing.md),
@@ -64,7 +64,6 @@ struct LibraryAlbumsView: View {
             .navigationTitle("Albums")
         }
         .preferredColorScheme(.dark)
-        .task { if library.tracks.isEmpty { await library.scan() } }
     }
 }
 

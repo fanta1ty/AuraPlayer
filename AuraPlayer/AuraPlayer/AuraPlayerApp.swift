@@ -10,6 +10,8 @@ import SwiftUI
 @main
 struct AuraPlayerApp: App {
     @StateObject private var player = PlayerViewModel()
+    @StateObject private var library = LibraryViewModel()
+    @StateObject private var playlists = PlaylistViewModel()
     
     init() {
         AudioSessionManager.shared.configure()  // Session first
@@ -20,6 +22,8 @@ struct AuraPlayerApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(player)
+                .environmentObject(library)
+                .environmentObject(playlists)
         }
     }
 }

@@ -11,7 +11,7 @@ import SwiftUI
 
 struct LibraryArtistsView: View {
     @EnvironmentObject var player: PlayerViewModel
-    @StateObject private var library = LibraryViewModel()
+    @EnvironmentObject var library: LibraryViewModel
     
     private var artists: [Artist] {
         Dictionary(grouping: library.tracks) { $0.artist.lowercased() }
@@ -80,7 +80,6 @@ struct LibraryArtistsView: View {
             .navigationTitle("Artists")
         }
         .preferredColorScheme(.dark)
-        .task { if library.tracks.isEmpty { await library.scan() } }
     }
     
     private func row(_ artist: Artist) -> some View {
