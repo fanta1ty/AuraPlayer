@@ -20,7 +20,14 @@ struct ContentView: View {
                     }
                 
                 LibraryAlbumsView()
-                    .tabItem { Label("Albums", systemImage: "square.stack") }
+                    .tabItem {
+                        Label("Albums", systemImage: "square.stack")
+                    }
+                
+                LibraryArtistsView()
+                    .tabItem {
+                        Label("Artists", systemImage: "music.mic")
+                    }
             }
             .tint(Color.accent)
             
