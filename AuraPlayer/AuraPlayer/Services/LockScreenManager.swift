@@ -61,3 +61,83 @@ final class LockScreenManager {
         center.nowPlayingInfo = nil
     }
 }
+
+// MARK: - Remote commands
+
+extension LockScreenManager {
+
+    struct Handlers {
+        var play: () -> Void
+        var pause: () -> Void
+        var toggle: () -> Void
+        var next: () -> Void
+        var previous: () -> Void
+        var seek: (TimeInterval) -> Void
+    }
+
+    /// Register lock screen / Control Center / headphone command handlers.
+    /// Registering at least one command is what makes iOS show our now-playing info.
+    func configureRemoteCommands(_ handlers: Handlers) {
+        let center = MPRemoteCommandCenter.shared()
+
+        // Clear any previous targets (safe if called more than once).
+        center.playCommand.removeTarget(nil)
+        center.pauseCommand.removeTarget(nil)
+        center.togglePlayPauseCommand.removeTarget(nil)
+        center.nextTrackCommand.removeTarget(nil)
+        center.previousTrackCommand.removeTarget(nil)
+        center.changePlaybackPositionCommand.removeTarget(nil)
+
+        center.playCommand.isEnabled = true
+        center.playCommand.addTarget { _ in
+            handlers.play()
+            return .success
+        }
+
+        center.pauseCommand.isEnabled = true
+        center.pauseCommand.addTarget { _ in
+            handlers.pause()
+            return .success
+        }
+
+        center.togglePlayPauseCommand.isEnabled = true
+        center.togglePlayPauseCommand.addTarget { _ in
+            handlers.toggle()
+            return .success
+        }
+
+        center.nextTrackCommand.isEnabled = true
+        center.nextTrackCommand.addTarget { _ in
+            handlers.next()
+            return .success
+        }
+
+        center.previousTrackCommand.isEnabled = true
+        center.previousTrackCommand.addTarget { _ in
+            handlers.previous()
+            return .success
+        }
+
+        // Lock screen scrubbing
+        center.changePlaybackPositionCommand.isEnabled = true
+        center.changePlaybackPositionCommand.addTarget { event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else {
+                return .commandFailed
+            }
+            handlers.seek(event.positionTime)
+            return .success
+        }
+
+        // Commands we don't support — hide them.
+        center.ratingCommand.isEnabled = false
+        center.likeCommand.isEnabled = false
+        center.dislikeCommand.isEnabled = false
+        center.bookmarkCommand.isEnabled = false
+        center.changeRepeatModeCommand.isEnabled = false
+        center.changeShuffleModeCommand.isEnabled = false
+        center.skipForwardCommand.isEnabled = false
+        center.skipBackwardCommand.isEnabled = false
+        center.seekForwardCommand.isEnabled = false
+        center.seekBackwardCommand.isEnabled = false
+    }
+}

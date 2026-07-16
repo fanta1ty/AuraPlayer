@@ -75,6 +75,7 @@ final class PlayerViewModel: ObservableObject {
             rawValue: defaults.integer(forKey: Keys.repeatMode)
         ) ?? .none
         isShuffled = defaults.bool(forKey: Keys.isShuffled)
+        setupRemoteCommands()
     }
 
     // MARK: - Loading
@@ -377,6 +378,30 @@ final class PlayerViewModel: ObservableObject {
         LockScreenManager.shared.updatePlaybackState(
             elapsed: currentTime,
             rate: isPlaying ? 1 : 0
+        )
+    }
+
+    /// Registering remote commands is what makes iOS treat us as the Now Playing
+    /// app — without it, nowPlayingInfo never appears on the lock screen.
+    private func setupRemoteCommands() {
+        LockScreenManager.shared.configureRemoteCommands(
+            LockScreenManager.Handlers(
+                play: { [weak self] in
+                    guard let self, !self.isPlaying else { return }
+                    self.togglePlayPause()
+                },
+                pause: { [weak self] in
+                    guard let self, self.isPlaying else { return }
+                    self.togglePlayPause()
+                },
+                toggle: { [weak self] in self?.togglePlayPause() },
+                next: { [weak self] in self?.skipNext() },
+                previous: { [weak self] in self?.skipPrevious() },
+                seek: { [weak self] time in
+                    guard let self, self.duration > 0 else { return }
+                    self.seek(toProgress: time / self.duration)
+                }
+            )
         )
     }
 
