@@ -12,6 +12,7 @@ struct AuraPlayerApp: App {
     @StateObject private var player = PlayerViewModel()
     @StateObject private var library = LibraryViewModel()
     @StateObject private var playlists = PlaylistViewModel()
+    @StateObject private var eq = EQEngine.shared
     @StateObject private var stats = TrackStatsViewModel()
     
     init() {
@@ -25,6 +26,7 @@ struct AuraPlayerApp: App {
                 .environmentObject(player)
                 .environmentObject(library)
                 .environmentObject(playlists)
+                .environmentObject(eq)
                 .environmentObject(stats)
         }
     }

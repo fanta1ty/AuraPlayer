@@ -19,6 +19,10 @@ final class AuraAudioEngine {
 
     let engine = AVAudioEngine()
     let playerNode = AVAudioPlayerNode()
+    let eqNode = AVAudioUnitEQ(numberOfBands: 10)
+
+    /// Standard 10-band graphic EQ centers (Hz).
+    static let eqFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
     // MARK: - State
 
@@ -67,16 +71,47 @@ final class AuraAudioEngine {
 
     private func buildGraph() {
         engine.attach(playerNode)
+        engine.attach(eqNode)
+        configureEQBands()
+
+        // player -> EQ -> mixer -> output
         // nil format = engine picks the mixer's default; we reconnect per-file in reconnect(with:).
-        engine.connect(playerNode, to: engine.mainMixerNode, format: currentFormat)
+        engine.connect(playerNode, to: eqNode, format: currentFormat)
+        engine.connect(eqNode, to: engine.mainMixerNode, format: currentFormat)
         _ = engine.outputNode   // referencing realizes the graph
     }
 
-    /// Reconnect the player node with a specific file format (called from play()).
+    /// Flat 10-band parametric EQ, 1 octave wide per band.
+    private func configureEQBands() {
+        for (index, band) in eqNode.bands.enumerated() {
+            band.filterType = .parametric
+            band.frequency = Self.eqFrequencies[index]
+            band.bandwidth = 1.0
+            band.gain = 0.0          // flat
+            band.bypass = false
+        }
+        eqNode.globalGain = 0.0
+        eqNode.bypass = false
+    }
+
+    /// Reconnect the chain with a specific file format (called from play()).
+    ///
+    /// The engine must be stopped while rewiring: AVAudioUnitEQ rejects a live
+    /// format change with -10868 (kAudioUnitErr_FormatNotSupported).
     func reconnect(with format: AVAudioFormat) {
+        // Nothing to do if the chain is already wired for this exact format.
+        if let currentFormat, currentFormat == format { return }
         currentFormat = format
+
+        let wasRunning = engine.isRunning
+        engine.stop()
+
         engine.disconnectNodeOutput(playerNode)
-        engine.connect(playerNode, to: engine.mainMixerNode, format: format)
+        engine.disconnectNodeOutput(eqNode)
+        engine.connect(playerNode, to: eqNode, format: format)
+        engine.connect(eqNode, to: engine.mainMixerNode, format: format)
+
+        if wasRunning { start() }
     }
 
     // MARK: - Lifecycle
