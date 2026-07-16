@@ -43,6 +43,7 @@ final class PlayerViewModel: ObservableObject {
     
     @Published var currentTitle: String = ""
     @Published var currentArtist: String = ""
+    @Published var currentAlbum: String = ""
     @Published var currentArtwork: UIImage?
     @Published private(set) var hasTrack = false
 
@@ -123,19 +124,23 @@ final class PlayerViewModel: ObservableObject {
         if let track = trackIndex[url] {
             currentTitle = track.title
             currentArtist = track.artist
+            currentAlbum = track.album
             currentArtwork = track.artworkData.flatMap({
                 UIImage(data: $0)
             })
         } else {
+            currentAlbum = ""
             loadMetadata(for: url) // fallback for the debug/bundle path
         }
         
         startTicking()
+        publishNowPlaying()
     }
 
     func togglePlayPause() {
         engine.isPlaying ? engine.pause() : engine.resume()
         isPlaying = engine.isPlaying
+        refreshNowPlayingState()
     }
 
     func stop() {
@@ -146,8 +151,10 @@ final class PlayerViewModel: ObservableObject {
         hasTrack = false
         currentTitle = ""
         currentArtist = ""
+        currentAlbum = ""
         currentArtwork = nil
         stopTicking()
+        LockScreenManager.shared.clear()
     }
 
     /// Called by the UI while scrubbing the slider (progress is 0...1).
@@ -155,6 +162,7 @@ final class PlayerViewModel: ObservableObject {
         engine.seek(to: p * duration)
         currentTime = p * duration
         progress = p
+        refreshNowPlayingState()
     }
 
     // MARK: - Queue navigation
@@ -312,13 +320,18 @@ final class PlayerViewModel: ObservableObject {
                 if let title, !title.isEmpty { self?.currentTitle = title }
                 if let artist, !artist.isEmpty { self?.currentArtist = artist }
                 if let artwork { self?.currentArtwork = artwork }
+                
+                self?.publishNowPlaying()
             }
         }
     }
 
     // MARK: - Ticking
 
+    private var tickCount = 0
+    
     private func startTicking() {
+        
         stopTicking()
         // Fires on the main run loop, so UI updates are safe.
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -333,12 +346,38 @@ final class PlayerViewModel: ObservableObject {
                 self.countedThisPlay = true
                 self.onPlayedThreshold?(url)
             }
+            
+            self.tickCount += 1
+            if self.tickCount % 10 == 0 {      // 0.5s × 10 = every 5s
+                self.refreshNowPlayingState()
+            }
         }
     }
 
     private func stopTicking() {
         timer?.invalidate()
         timer = nil
+    }
+    
+    // MARK: - Lock screen
+    
+    private func publishNowPlaying() {
+        LockScreenManager.shared.update(
+            title: currentTitle,
+            artist: currentArtist,
+            album: currentAlbum,
+            artwork: currentArtwork,
+            duration: duration,
+            elapsed: currentTime,
+            rate: isPlaying ? 1 : 0
+        )
+    }
+    
+    private func refreshNowPlayingState() {
+        LockScreenManager.shared.updatePlaybackState(
+            elapsed: currentTime,
+            rate: isPlaying ? 1 : 0
+        )
     }
 
     deinit { stopTicking() }
