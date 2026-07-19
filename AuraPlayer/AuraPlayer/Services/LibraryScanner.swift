@@ -35,19 +35,21 @@ enum LibraryScanner {
             return []
         }
         
-        let urls = (
-            try? fm
-                .contentsOfDirectory(
-                    at: docs,
-                    includingPropertiesForKeys: [.creationDateKey],
-                    options: [.skipsHiddenFiles]
-                )
-        ) ?? []
-        
-        var tracks: [Track] = []
-        for url in urls where supportedExtensions.contains(
-            url.pathExtension.lowercased()
+        // Recursive so imported files under Documents/Music are found too.
+        var urls: [URL] = []
+        if let enumerator = fm.enumerator(
+            at: docs,
+            includingPropertiesForKeys: [.creationDateKey],
+            options: [.skipsHiddenFiles]
         ) {
+            for case let url as URL in enumerator
+            where supportedExtensions.contains(url.pathExtension.lowercased()) {
+                urls.append(url)
+            }
+        }
+
+        var tracks: [Track] = []
+        for url in urls {
             tracks.append(await makeTrack(from: url))
         }
         return tracks

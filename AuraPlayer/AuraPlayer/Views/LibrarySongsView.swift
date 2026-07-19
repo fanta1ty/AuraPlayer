@@ -16,6 +16,8 @@ struct LibrarySongsView: View {
     @EnvironmentObject var stats: TrackStatsViewModel
     
     @State private var searchText = ""
+    @State private var showImporter = false
+    @State private var isImporting = false
     @State private var sort: SortOrder = .title
     
     enum SortOrder: String, CaseIterable, Identifiable {
@@ -69,6 +71,19 @@ struct LibrarySongsView: View {
             }
             .navigationTitle("Songs")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showImporter = true
+                    } label: {
+                        if isImporting {
+                            ProgressView().tint(Color.accent)
+                        } else {
+                            Image(systemName: "square.and.arrow.down")
+                                .foregroundStyle(Color.accent)
+                        }
+                    }
+                    .disabled(isImporting)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Picker("Sort", selection: $sort) {
@@ -81,6 +96,19 @@ struct LibrarySongsView: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Search songs or artists")
+            .sheet(isPresented: $showImporter) {
+                DocumentPickerView { urls in
+                    showImporter = false
+                    guard !urls.isEmpty else { return }
+                    isImporting = true
+                    Task {
+                        AudioImporter.importFiles(urls)
+                        await library.scan()
+                        isImporting = false
+                    }
+                }
+                .ignoresSafeArea()
+            }
         }
         .preferredColorScheme(.dark)
     }
