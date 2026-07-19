@@ -37,6 +37,11 @@ struct ContentView: View {
                     .tabItem {
                         Label("Playlists", systemImage: "music.note.list")
                     }
+
+                SettingsView()
+                    .tabItem {
+                        Label("Settings", systemImage: "gearshape")
+                    }
             }
             .tint(Color.accent)
             
