@@ -104,8 +104,9 @@ final class EQEngine: ObservableObject {
     // MARK: - Presets
 
     func apply(_ preset: EQPreset) {
-        apply(preset: preset.gains)
-        selectedPresetID = preset.id
+        apply(preset: preset.gains)     // setBand() clears the selection…
+        selectedPresetID = preset.id    // …so set it after,
+        persistSettings()               // …and persist after that.
     }
 
     /// Capture the current band gains as a new named preset.
@@ -116,6 +117,7 @@ final class EQEngine: ObservableObject {
         customPresets.append(preset)
         EQPresetStore.save(customPresets)
         selectedPresetID = preset.id
+        persistSettings()
     }
 
     /// Delete a custom preset (built-ins can't be removed).
