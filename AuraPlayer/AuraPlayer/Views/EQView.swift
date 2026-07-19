@@ -18,6 +18,7 @@ struct EQView: View {
         NavigationStack {
             VStack(spacing: AuraSpacing.lg) {
                 presetChips
+                preampControl
                 sliders
                 Spacer(minLength: 0)
             }
@@ -78,6 +79,30 @@ struct EQView: View {
             }
             .padding(.horizontal, AuraSpacing.md)
         }
+    }
+
+    private var preampControl: some View {
+        VStack(alignment: .leading, spacing: AuraSpacing.xs) {
+            HStack {
+                Text("Preamp")
+                    .font(.auraCaption)
+                    .foregroundStyle(Color.textSecondary)
+                Spacer()
+                Text(String(format: "%+.1f dB", eq.preamp))
+                    .font(.auraTimestamp)
+                    .foregroundStyle(eq.preamp == 0 ? Color.textTertiary : Color.accent)
+            }
+            AuraSlider(value: Binding(
+                get: {
+                    Double((eq.preamp - EQEngine.minGain) / (EQEngine.maxGain - EQEngine.minGain))
+                },
+                set: { newValue in
+                    let range = EQEngine.maxGain - EQEngine.minGain
+                    eq.setPreamp(EQEngine.minGain + Float(newValue) * range)
+                }
+            ))
+        }
+        .padding(.horizontal, AuraSpacing.md)
     }
 
     private var sliders: some View {

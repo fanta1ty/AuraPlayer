@@ -33,6 +33,7 @@ final class EQEngine: ObservableObject {
     @Published private(set) var bands: [EQBand] = []
     @Published private(set) var customPresets: [EQPreset] = []
     @Published private(set) var selectedPresetID: UUID?
+    @Published private(set) var preamp: Float = 0
 
     /// Built-in presets followed by the user's saved ones.
     var allPresets: [EQPreset] { EQPreset.builtIns + customPresets }
@@ -52,6 +53,7 @@ final class EQEngine: ObservableObject {
                    isEnabled: !band.bypass)
         }
         customPresets = EQPresetStore.load()
+        restoreSettings()
     }
 
     /// All current gains, in band order — handy for saving presets.
@@ -64,6 +66,15 @@ final class EQEngine: ObservableObject {
         eqNode.bands[index].gain = clamped
         bands[index].gain = clamped
         selectedPresetID = nil    // manual edit = no longer a stock preset
+        persistSettings()
+    }
+
+    /// Master gain applied by the EQ unit (-12…+12 dB).
+    func setPreamp(_ value: Float) {
+        let clamped = min(max(value, Self.minGain), Self.maxGain)
+        preamp = clamped
+        eqNode.globalGain = clamped
+        persistSettings()
     }
 
     /// Enable/bypass a single band.
@@ -79,6 +90,7 @@ final class EQEngine: ObservableObject {
             setBand(index, gain: 0)
         }
         selectedPresetID = EQPreset.flat.id
+        persistSettings()
     }
 
     /// Apply an array of gain values (one per band, in order).
@@ -86,6 +98,7 @@ final class EQEngine: ObservableObject {
         for (index, gain) in preset.enumerated() where bands.indices.contains(index) {
             setBand(index, gain: gain)
         }
+        persistSettings()
     }
 
     // MARK: - Presets
@@ -111,5 +124,45 @@ final class EQEngine: ObservableObject {
         customPresets.removeAll { $0.id == preset.id }
         EQPresetStore.save(customPresets)
         if selectedPresetID == preset.id { selectedPresetID = nil }
+    }
+
+    // MARK: - Persistence
+
+    private enum Keys {
+        static let gains   = "eq.gains"
+        static let preamp  = "eq.preamp"
+        static let enabled = "eq.enabled"
+    }
+
+    private func persistSettings() {
+        let defaults = UserDefaults.standard
+        if let data = try? JSONEncoder().encode(gains) {
+            defaults.set(data, forKey: Keys.gains)
+        }
+        defaults.set(preamp, forKey: Keys.preamp)
+        defaults.set(isEnabled, forKey: Keys.enabled)
+    }
+
+    private func restoreSettings() {
+        let defaults = UserDefaults.standard
+
+        if let data = defaults.data(forKey: Keys.gains),
+           let saved = try? JSONDecoder().decode([Float].self, from: data) {
+            for (index, gain) in saved.enumerated() where bands.indices.contains(index) {
+                let clamped = min(max(gain, Self.minGain), Self.maxGain)
+                eqNode.bands[index].gain = clamped
+                bands[index].gain = clamped
+            }
+        }
+
+        if defaults.object(forKey: Keys.preamp) != nil {
+            preamp = defaults.float(forKey: Keys.preamp)
+            eqNode.globalGain = preamp
+        }
+
+        if let enabled = defaults.object(forKey: Keys.enabled) as? Bool {
+            isEnabled = enabled          // assignment in init doesn't fire didSet…
+            eqNode.bypass = !enabled     // …so set the node directly
+        }
     }
 }
