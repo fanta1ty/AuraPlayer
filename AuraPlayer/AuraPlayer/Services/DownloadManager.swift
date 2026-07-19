@@ -179,10 +179,15 @@ extension DownloadManager: URLSessionDownloadDelegate {
             try? FileManager.default.removeItem(at: staged)
 
             if let destination = imported.first {
+                let sourceURL = self.items.first(where: { $0.id == id })?.url
                 self.update(id) { item in
                     item.filename = destination.lastPathComponent
                     item.progress = 1
                     item.status = .finished
+                }
+                if let sourceURL {
+                    DownloadHistory.append(filename: destination.lastPathComponent,
+                                           sourceURL: sourceURL)
                 }
                 self.onDownloadFinished?()
             } else {

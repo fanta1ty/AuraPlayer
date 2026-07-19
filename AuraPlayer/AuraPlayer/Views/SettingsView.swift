@@ -24,6 +24,14 @@ struct SettingsView: View {
                     .listRowBackground(Color.surface)
 
                     NavigationLink {
+                        DownloadHistoryView()
+                    } label: {
+                        Label("Download History", systemImage: "clock.arrow.circlepath")
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                    .listRowBackground(Color.surface)
+
+                    NavigationLink {
                         StorageView()
                     } label: {
                         Label("Storage", systemImage: "internaldrive")

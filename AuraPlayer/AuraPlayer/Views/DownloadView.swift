@@ -202,8 +202,16 @@ struct DownloadView: View {
     /// Checks whether the clipboard *probably* holds a URL.
     /// This does NOT read the clipboard, so no privacy banner is shown.
     private func clipboardLikelyHasURL() async -> Bool {
-        let patterns = try? await UIPasteboard.general.detectPatterns(for: [.probableWebURL])
-        return patterns?.contains(.probableWebURL) ?? false
+        await withCheckedContinuation { continuation in
+            UIPasteboard.general.detectPatterns(for: [.probableWebURL]) { result in
+                switch result {
+                case .success(let patterns):
+                    continuation.resume(returning: patterns.contains(.probableWebURL))
+                case .failure:
+                    continuation.resume(returning: false)
+                }
+            }
+        }
     }
 
     /// Reads the clipboard (user-initiated, so the paste banner is expected) and downloads.
