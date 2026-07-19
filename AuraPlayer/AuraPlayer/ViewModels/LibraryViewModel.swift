@@ -19,5 +19,12 @@ final class LibraryViewModel: ObservableObject {
         isScanning = true
         tracks = await LibraryScanner.scanDocuments()
         isScanning = false
+
+        // Show the library immediately, then fill in missing artwork
+        // from cache/network and republish.
+        let enhanced = await MetadataEnhancer.enhance(tracks)
+        if enhanced.count == tracks.count {
+            tracks = enhanced
+        }
     }
 }
