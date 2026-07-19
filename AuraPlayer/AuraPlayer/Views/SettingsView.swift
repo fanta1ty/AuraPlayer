@@ -66,12 +66,16 @@ struct SettingsView: View {
                         }
                         .listRowBackground(Color.surface)
                     }
+                    Toggle("Volume Normalization", isOn: $player.normalizationEnabled)
+                        .tint(Color.accent)
+                        .foregroundStyle(Color.textPrimary)
+                        .listRowBackground(Color.surface)
                 } header: {
                     Text("Playback")
                         .font(.auraCaption)
                         .foregroundStyle(Color.textSecondary)
                 } footer: {
-                    Text("Tracks overlap when one ends. Manual skips are always instant.")
+                    Text("Tracks overlap when one ends. Manual skips are always instant. Normalization evens out loudness between tracks.")
                         .font(.auraCaption)
                         .foregroundStyle(Color.textTertiary)
                 }

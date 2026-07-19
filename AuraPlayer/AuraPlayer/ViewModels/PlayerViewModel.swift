@@ -135,6 +135,7 @@ final class PlayerViewModel: ObservableObject {
         startTicking()
         publishNowPlaying()
         loadWaveform(for: url)
+        applyNormalization(for: url)
     }
 
     /// Use metadata from the scanned track when we have it, else read tags async.
@@ -148,6 +149,40 @@ final class PlayerViewModel: ObservableObject {
             currentAlbum = ""
             loadMetadata(for: url)      // fallback for the debug/bundle path
         }
+    }
+
+    // MARK: - Volume normalization (ReplayGain)
+
+    private static let normalizationKey = "player.volumeNormalization"
+
+    @Published var normalizationEnabled: Bool =
+        UserDefaults.standard.bool(forKey: PlayerViewModel.normalizationKey) {
+        didSet {
+            UserDefaults.standard.set(normalizationEnabled, forKey: Self.normalizationKey)
+            if !normalizationEnabled { engine.setGainDB(0) }
+            else if let url = currentTrackURL { applyNormalization(for: url) }
+        }
+    }
+
+    /// Analysis is cached, so this is usually instant after the first play.
+    private func applyNormalization(for url: URL) {
+        guard normalizationEnabled else {
+            engine.setGainDB(0)
+            return
+        }
+        Task { [weak self] in
+            let gain = await LoudnessAnalyzer.gain(for: url)
+            await MainActor.run {
+                guard let self, self.currentTrackURL == url else { return }
+                self.engine.setGainDB(gain)
+            }
+        }
+    }
+
+    /// Cached gain only — used when starting a crossfade, where we can't wait.
+    private func cachedGain(for url: URL) async -> Float {
+        guard normalizationEnabled else { return 0 }
+        return await LoudnessAnalyzer.gain(for: url)
     }
 
     // MARK: - A-B repeat
@@ -228,8 +263,18 @@ final class PlayerViewModel: ObservableObject {
         let remaining = duration - currentTime
         guard remaining > 0, remaining <= crossfadeDuration else { return }
 
-        if engine.crossfade(to: nextURL, duration: crossfadeDuration) {
-            advancePositionAfterCrossfade()
+        // Kick off with cached gain if we have it; analysis fills in shortly after.
+        Task { [weak self] in
+            guard let self else { return }
+            let gain = await self.cachedGain(for: nextURL)
+            await MainActor.run {
+                guard !self.engine.isCrossfading else { return }
+                if self.engine.crossfade(to: nextURL,
+                                         duration: self.crossfadeDuration,
+                                         gainDB: gain) {
+                    self.advancePositionAfterCrossfade()
+                }
+            }
         }
     }
 

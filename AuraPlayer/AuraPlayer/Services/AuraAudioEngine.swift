@@ -45,6 +45,8 @@ final class AuraAudioEngine {
         var lengthSamples: AVAudioFramePosition = 0
         var seekFrame: AVAudioFramePosition = 0
         var generation = 0
+        /// ReplayGain-style correction for this track, in dB.
+        var gainDB: Float = 0
     }
 
     private var slots = [Slot(), Slot()]
@@ -162,10 +164,25 @@ final class AuraAudioEngine {
 
     func stopEngine() { engine.stop() }
 
+    // MARK: - Volume
+
+    /// A slot's output is its crossfade position multiplied by its ReplayGain.
+    private func applyVolume(slot index: Int, fade: Float) {
+        let linear = pow(10, slots[index].gainDB / 20)
+        mixers[index].outputVolume = fade * linear
+    }
+
+    /// Update the active track's gain (e.g. when analysis finishes late).
+    func setGainDB(_ db: Float) {
+        slots[activeIndex].gainDB = db
+        guard !isCrossfading else { return }
+        applyVolume(slot: activeIndex, fade: 1)
+    }
+
     // MARK: - Playback
 
     /// Load and play immediately on the active slot (hard switch).
-    func play(url: URL) {
+    func play(url: URL, gainDB: Float = 0) {
         cancelCrossfade()
 
         do {
@@ -176,10 +193,11 @@ final class AuraAudioEngine {
             slots[index].sampleRate = file.processingFormat.sampleRate
             slots[index].lengthSamples = file.length
             slots[index].seekFrame = 0
+            slots[index].gainDB = gainDB
 
             players[inactiveIndex].stop()
             mixers[inactiveIndex].outputVolume = 0
-            mixers[index].outputVolume = 1
+            applyVolume(slot: index, fade: 1)
 
             wire(slot: index, format: file.processingFormat)
             start()
@@ -195,7 +213,7 @@ final class AuraAudioEngine {
     /// Begin overlapping the next track. Returns false if a crossfade isn't
     /// possible right now (already fading, or the file needs a graph rewire).
     @discardableResult
-    func crossfade(to url: URL, duration: TimeInterval) -> Bool {
+    func crossfade(to url: URL, duration: TimeInterval, gainDB: Float = 0) -> Bool {
         guard !isCrossfading, duration > 0 else { return false }
 
         guard let file = try? AVAudioFile(forReading: url) else { return false }
@@ -208,9 +226,10 @@ final class AuraAudioEngine {
         slots[next].sampleRate = file.processingFormat.sampleRate
         slots[next].lengthSamples = file.length
         slots[next].seekFrame = 0
+        slots[next].gainDB = gainDB
 
         schedule(file: file, slot: next, startingFrame: nil)
-        mixers[next].outputVolume = 0
+        applyVolume(slot: next, fade: 0)
         start()
         players[next].play()
 
@@ -231,8 +250,8 @@ final class AuraAudioEngine {
             guard let self else { timer.invalidate(); return }
             elapsed += step
             let t = Float(min(1, elapsed / duration))
-            self.mixers[outgoing].outputVolume = 1 - t
-            self.mixers[incoming].outputVolume = t
+            self.applyVolume(slot: outgoing, fade: 1 - t)
+            self.applyVolume(slot: incoming, fade: t)
 
             if t >= 1 {
                 timer.invalidate()
@@ -312,7 +331,7 @@ final class AuraAudioEngine {
             players[index].stop()
             slots[index].file = nil
         }
-        mixers[activeIndex].outputVolume = 1
+        applyVolume(slot: activeIndex, fade: 1)
         mixers[inactiveIndex].outputVolume = 0
     }
 
