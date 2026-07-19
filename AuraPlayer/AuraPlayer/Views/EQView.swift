@@ -19,6 +19,7 @@ struct EQView: View {
             VStack(spacing: AuraSpacing.lg) {
                 presetChips
                 preampControl
+                EQCurveView(bands: eq.bands, preamp: eq.preamp)
                 sliders
                 Spacer(minLength: 0)
             }
