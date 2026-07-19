@@ -11,6 +11,8 @@ struct EQView: View {
     @EnvironmentObject var eq: EQEngine
     @Environment(\.dismiss) private var dismiss
 
+    @StateObject private var spectrum = SpectrumAnalyzer.shared
+
     @State private var showSave = false
     @State private var newName = ""
 
@@ -19,6 +21,9 @@ struct EQView: View {
             VStack(spacing: AuraSpacing.lg) {
                 presetChips
                 preampControl
+                SpectrumView(levels: spectrum.levels)
+                    .frame(height: 90)
+                    .padding(.horizontal, AuraSpacing.md)
                 EQCurveView(bands: eq.bands, preamp: eq.preamp)
                 sliders
                 Spacer(minLength: 0)
@@ -55,6 +60,8 @@ struct EQView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear { spectrum.start() }
+        .onDisappear { spectrum.stop() }
     }
 
     private var presetChips: some View {
