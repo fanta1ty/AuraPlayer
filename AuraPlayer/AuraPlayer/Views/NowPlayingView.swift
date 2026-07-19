@@ -18,8 +18,11 @@ struct NowPlayingView: View {
     
     @EnvironmentObject var eq: EQEngine
 
+    @StateObject private var sleepTimer = SleepTimer.shared
+
     @State private var showQueue = false
     @State private var showEQ = false
+    @State private var showSleepTimer = false
     
     var body: some View {
         ZStack {
@@ -43,6 +46,15 @@ struct NowPlayingView: View {
         .overlay(alignment: .topTrailing) {
             HStack(spacing: AuraSpacing.md) {
                 Button {
+                    showSleepTimer = true
+                } label: {
+                    Image(systemName: sleepTimer.isActive ? "moon.zzz.fill" : "moon.zzz")
+                        .font(.auraTitle)
+                        .foregroundStyle(sleepTimer.isActive ? Color.accent : Color.textPrimary)
+                }
+                .buttonStyle(ScaleButtonStyle())
+
+                Button {
                     showEQ = true
                 } label: {
                     Image(systemName: "slider.vertical.3")
@@ -64,6 +76,9 @@ struct NowPlayingView: View {
         }
         .sheet(isPresented: $showEQ) {
             EQView().environmentObject(eq)
+        }
+        .sheet(isPresented: $showSleepTimer) {
+            SleepTimerView()
         }
         .sheet(isPresented: $showQueue) {
             QueueView()

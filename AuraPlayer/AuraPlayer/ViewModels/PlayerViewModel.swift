@@ -78,6 +78,12 @@ final class PlayerViewModel: ObservableObject {
         ) ?? .none
         isShuffled = defaults.bool(forKey: Keys.isShuffled)
         setupRemoteCommands()
+
+        // Sleep timer pauses playback when it fires.
+        SleepTimer.shared.onFire = { [weak self] in
+            guard let self, self.isPlaying else { return }
+            self.togglePlayPause()
+        }
     }
 
     // MARK: - Loading
@@ -215,6 +221,12 @@ final class PlayerViewModel: ObservableObject {
     }
 
     private func handleTrackFinished() {
+        // Sleep timer set to "end of track" wins over repeat/advance.
+        if SleepTimer.shared.shouldStopAfterTrack() {
+            stop()
+            return
+        }
+
         switch repeatMode {
         case .one:
             playCurrent()                // replay same track indefinitely
