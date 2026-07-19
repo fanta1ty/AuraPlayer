@@ -188,18 +188,57 @@ struct NowPlayingView: View {
     
     // MARK: - Seek bar
     
+    /// A-B loop as 0...1 fractions, for the waveform overlay.
+    private var loopRange: ClosedRange<Double>? {
+        guard let start = player.loopStart,
+              let end = player.loopEnd,
+              player.duration > 0,
+              start < end
+        else { return nil }
+        return (start / player.duration)...(end / player.duration)
+    }
+
+    /// Cycles A → B → off.
+    private var loopButtonLabel: String {
+        if player.loopStart == nil { return "A-B" }
+        if player.loopEnd == nil { return "A•" }
+        return "A-B"
+    }
+
     private var seekBar: some View {
         VStack(spacing: AuraSpacing.sm) {
             WaveformView(
                 samples: player.waveform,
-                progress: player.progress
+                progress: player.progress,
+                loopRange: loopRange
             ) { newProgress in
                 player.seek(toProgress: newProgress)
             }
             .frame(height: 48)
             HStack {
                 Text(Self.time(player.currentTime))
+
                 Spacer()
+
+                Button {
+                    player.cycleLoopPoint()
+                } label: {
+                    Text(loopButtonLabel)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(player.loopStart == nil ? Color.textTertiary : Color.accent)
+                        .padding(.horizontal, AuraSpacing.sm)
+                        .padding(.vertical, 3)
+                        .overlay(
+                            Capsule().stroke(
+                                player.loopStart == nil ? Color.textDisabled : Color.accent,
+                                lineWidth: 1
+                            )
+                        )
+                }
+                .buttonStyle(ScaleButtonStyle())
+
+                Spacer()
+
                 Text(Self.time(player.duration))
             }
             .font(.auraTimestamp)

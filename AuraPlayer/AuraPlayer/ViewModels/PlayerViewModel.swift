@@ -150,6 +150,43 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
+    // MARK: - A-B repeat
+
+    @Published private(set) var loopStart: TimeInterval?
+    @Published private(set) var loopEnd: TimeInterval?
+
+    var isLooping: Bool { loopStart != nil && loopEnd != nil }
+
+    /// Tap cycles: set A → set B (loop starts) → clear.
+    func cycleLoopPoint() {
+        if loopStart == nil {
+            loopStart = currentTime
+        } else if loopEnd == nil {
+            let candidate = currentTime
+            // B must be after A; if the user taps too early, reset A instead.
+            if candidate > (loopStart ?? 0) + 0.5 {
+                loopEnd = candidate
+            } else {
+                loopStart = candidate
+            }
+        } else {
+            clearLoop()
+        }
+    }
+
+    func clearLoop() {
+        loopStart = nil
+        loopEnd = nil
+    }
+
+    /// Jump back to A when we pass B.
+    private func enforceLoopIfNeeded() {
+        guard let start = loopStart, let end = loopEnd else { return }
+        if currentTime >= end {
+            seek(toProgress: duration > 0 ? start / duration : 0)
+        }
+    }
+
     // MARK: - Crossfade
 
     private enum CrossfadeKeys {
@@ -181,6 +218,7 @@ final class PlayerViewModel: ObservableObject {
     private func beginCrossfadeIfNeeded() {
         guard crossfadeEnabled,
               isPlaying,
+              !isLooping,                    // never fade out of an A-B loop
               repeatMode != .one,            // repeat-one shouldn't fade into itself
               duration > 0,
               !engine.isCrossfading,
@@ -240,6 +278,7 @@ final class PlayerViewModel: ObservableObject {
         currentArtwork = nil
         waveformTask?.cancel()
         waveform = []
+        clearLoop()
         stopTicking()
         LockScreenManager.shared.clear()
     }
@@ -427,7 +466,8 @@ final class PlayerViewModel: ObservableObject {
         
         stopTicking()
         // Fires on the main run loop, so UI updates are safe.
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        // 0.1s keeps A-B looping tight and the playhead smooth.
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.currentTime = self.engine.currentTime
             self.isPlaying = self.engine.isPlaying
@@ -440,10 +480,11 @@ final class PlayerViewModel: ObservableObject {
                 self.onPlayedThreshold?(url)
             }
             
+            self.enforceLoopIfNeeded()
             self.beginCrossfadeIfNeeded()
 
             self.tickCount += 1
-            if self.tickCount % 10 == 0 {      // 0.5s × 10 = every 5s
+            if self.tickCount % 50 == 0 {      // 0.1s × 50 = every 5s
                 self.refreshNowPlayingState()
             }
         }
