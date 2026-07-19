@@ -25,6 +25,10 @@ final class DownloadManager: NSObject, ObservableObject {
     private var session: URLSession!
     /// Maps URLSession task identifiers back to our items.
     private var taskMap: [Int: UUID] = [:]
+    /// Partial data captured when a download is paused.
+    private var resumeData: [UUID: Data] = [:]
+    /// Last progress sample per item, for speed calculation.
+    private var progressStamps: [UUID: (time: Date, bytes: Int64)] = [:]
 
     private override init() {
         super.init()
@@ -55,6 +59,33 @@ final class DownloadManager: NSObject, ObservableObject {
         startNextIfPossible()
     }
 
+    /// Pause by cancelling with resume data so we can continue from the same byte.
+    func pause(_ item: DownloadItem) {
+        guard let taskID = taskMap.first(where: { $0.value == item.id })?.key else { return }
+        session.getAllTasks { tasks in
+            guard let task = tasks.first(where: { $0.taskIdentifier == taskID }) as? URLSessionDownloadTask
+            else { return }
+            task.cancel(byProducingResumeData: { data in
+                Task { @MainActor in
+                    if let data { self.resumeData[item.id] = data }
+                    self.taskMap.removeValue(forKey: taskID)
+                    self.update(item.id) { $0.status = .paused; $0.speed = 0 }
+                    self.startNextIfPossible()
+                }
+            })
+        }
+    }
+
+    func resume(_ item: DownloadItem) {
+        update(item.id) { $0.status = .queued }
+        startNextIfPossible()
+    }
+
+    func retry(_ item: DownloadItem) {
+        update(item.id) { $0.status = .queued; $0.progress = 0; $0.bytesWritten = 0 }
+        startNextIfPossible()
+    }
+
     func clearCompleted() {
         items.removeAll {
             if case .finished = $0.status { return true }
@@ -72,7 +103,13 @@ final class DownloadManager: NSObject, ObservableObject {
         guard activeCount < Self.maxConcurrent else { return }
         guard let next = items.first(where: { $0.status == .queued }) else { return }
 
-        let task = session.downloadTask(with: next.url)
+        // Continue from partial data when resuming a paused download.
+        let task: URLSessionDownloadTask
+        if let data = resumeData.removeValue(forKey: next.id) {
+            task = session.downloadTask(withResumeData: data)
+        } else {
+            task = session.downloadTask(with: next.url)
+        }
         taskMap[task.taskIdentifier] = next.id
         update(next.id) { $0.status = .downloading }
         task.resume()
@@ -99,12 +136,26 @@ extension DownloadManager: URLSessionDownloadDelegate {
         let taskID = downloadTask.taskIdentifier
         Task { @MainActor in
             guard let id = self.taskMap[taskID] else { return }
+            // Sample transfer speed at most twice a second.
+            var speed: Double?
+            let now = Date()
+            if let last = self.progressStamps[id] {
+                let dt = now.timeIntervalSince(last.time)
+                if dt >= 0.5 {
+                    speed = Double(totalBytesWritten - last.bytes) / dt
+                    self.progressStamps[id] = (now, totalBytesWritten)
+                }
+            } else {
+                self.progressStamps[id] = (now, totalBytesWritten)
+            }
+
             self.update(id) { item in
                 item.bytesWritten = totalBytesWritten
                 item.totalBytes = totalBytesExpectedToWrite
                 item.progress = totalBytesExpectedToWrite > 0
                     ? Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
                     : 0
+                if let speed { item.speed = speed }
             }
         }
     }

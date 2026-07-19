@@ -10,6 +10,7 @@ import Foundation
 enum DownloadStatus: Equatable {
     case queued
     case downloading
+    case paused
     case finished
     case failed(String)
     case cancelled
@@ -18,10 +19,15 @@ enum DownloadStatus: Equatable {
         switch self {
         case .queued:            return "Queued"
         case .downloading:       return "Downloading"
+        case .paused:            return "Paused"
         case .finished:          return "Done"
         case .cancelled:         return "Cancelled"
         case .failed(let msg):   return msg
         }
+    }
+
+    var isActive: Bool {
+        self == .queued || self == .downloading || self == .paused
     }
 }
 
@@ -33,6 +39,7 @@ struct DownloadItem: Identifiable, Equatable {
     var status: DownloadStatus
     var bytesWritten: Int64
     var totalBytes: Int64
+    var speed: Double = 0      // bytes per second
 
     init(url: URL) {
         self.id = UUID()

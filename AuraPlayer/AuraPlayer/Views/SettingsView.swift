@@ -16,6 +16,14 @@ struct SettingsView: View {
             List {
                 Section {
                     NavigationLink {
+                        DownloadView()
+                    } label: {
+                        Label("Downloads", systemImage: "arrow.down.circle")
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                    .listRowBackground(Color.surface)
+
+                    NavigationLink {
                         StorageView()
                     } label: {
                         Label("Storage", systemImage: "internaldrive")
