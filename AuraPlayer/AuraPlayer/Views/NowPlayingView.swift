@@ -23,6 +23,7 @@ struct NowPlayingView: View {
     @State private var showQueue = false
     @State private var showEQ = false
     @State private var showSleepTimer = false
+    @State private var showLyrics = false
     
     var body: some View {
         ZStack {
@@ -45,6 +46,15 @@ struct NowPlayingView: View {
         .preferredColorScheme(.dark)
         .overlay(alignment: .topTrailing) {
             HStack(spacing: AuraSpacing.md) {
+                Button {
+                    showLyrics = true
+                } label: {
+                    Image(systemName: "quote.bubble")
+                        .font(.auraTitle)
+                        .foregroundStyle(player.lyrics.isEmpty ? Color.textSecondary : Color.textPrimary)
+                }
+                .buttonStyle(ScaleButtonStyle())
+
                 Button {
                     showSleepTimer = true
                 } label: {
@@ -79,6 +89,9 @@ struct NowPlayingView: View {
         }
         .sheet(isPresented: $showSleepTimer) {
             SleepTimerView()
+        }
+        .sheet(isPresented: $showLyrics) {
+            LyricsView().environmentObject(player)
         }
         .sheet(isPresented: $showQueue) {
             QueueView()

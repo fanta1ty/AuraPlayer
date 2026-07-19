@@ -136,6 +136,7 @@ final class PlayerViewModel: ObservableObject {
         publishNowPlaying()
         loadWaveform(for: url)
         applyNormalization(for: url)
+        loadLyrics(for: url)
     }
 
     /// Use metadata from the scanned track when we have it, else read tags async.
@@ -148,6 +149,30 @@ final class PlayerViewModel: ObservableObject {
         } else {
             currentAlbum = ""
             loadMetadata(for: url)      // fallback for the debug/bundle path
+        }
+    }
+
+    // MARK: - Lyrics
+
+    @Published private(set) var lyrics = Lyrics(lines: [])
+    @Published private(set) var isLoadingLyrics = false
+    private var lyricsTask: Task<Void, Never>?
+
+    private func loadLyrics(for url: URL) {
+        lyricsTask?.cancel()
+        lyrics = Lyrics(lines: [])
+
+        guard let track = trackIndex[url] else { return }
+        isLoadingLyrics = true
+
+        lyricsTask = Task { [weak self] in
+            let found = await LyricsProvider.lyrics(for: track)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.currentTrackURL == url else { return }
+                self.lyrics = found
+                self.isLoadingLyrics = false
+            }
         }
     }
 
@@ -323,6 +348,8 @@ final class PlayerViewModel: ObservableObject {
         currentArtwork = nil
         waveformTask?.cancel()
         waveform = []
+        lyricsTask?.cancel()
+        lyrics = Lyrics(lines: [])
         clearLoop()
         stopTicking()
         LockScreenManager.shared.clear()
