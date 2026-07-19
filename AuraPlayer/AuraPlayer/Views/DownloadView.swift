@@ -14,6 +14,7 @@ struct DownloadView: View {
 
     @State private var urlText = ""
     @State private var showInvalidURL = false
+    @State private var clipboardHasURL = false
 
     private var isValidURL: Bool {
         let trimmed = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -41,8 +42,14 @@ struct DownloadView: View {
                             .foregroundStyle(Color.error)
                     }
 
-                    AuraButton("Download", systemImage: "arrow.down.circle", variant: .primary) {
-                        submit()
+                    if clipboardHasURL && urlText.isEmpty {
+                        AuraButton("Paste & Download", systemImage: "doc.on.clipboard", variant: .primary) {
+                            pasteAndDownload()
+                        }
+                    } else {
+                        AuraButton("Download", systemImage: "arrow.down.circle", variant: .primary) {
+                            submit()
+                        }
                     }
                 }
                 .padding(.vertical, AuraSpacing.xs)
@@ -94,6 +101,7 @@ struct DownloadView: View {
             downloads.onDownloadFinished = {
                 Task { await library.scan() }
             }
+            clipboardHasURL = await clipboardLikelyHasURL()
         }
     }
 
@@ -190,6 +198,23 @@ struct DownloadView: View {
     }
 
     // MARK: - Actions
+
+    /// Checks whether the clipboard *probably* holds a URL.
+    /// This does NOT read the clipboard, so no privacy banner is shown.
+    private func clipboardLikelyHasURL() async -> Bool {
+        let patterns = try? await UIPasteboard.general.detectPatterns(for: [.probableWebURL])
+        return patterns?.contains(.probableWebURL) ?? false
+    }
+
+    /// Reads the clipboard (user-initiated, so the paste banner is expected) and downloads.
+    private func pasteAndDownload() {
+        guard let pasted = UIPasteboard.general.string else {
+            clipboardHasURL = false
+            return
+        }
+        urlText = pasted
+        submit()
+    }
 
     private func submit() {
         guard isValidURL else {
