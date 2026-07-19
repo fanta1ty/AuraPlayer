@@ -31,6 +31,11 @@ final class EQEngine: ObservableObject {
     static let maxGain: Float = 12
 
     @Published private(set) var bands: [EQBand] = []
+    @Published private(set) var customPresets: [EQPreset] = []
+    @Published private(set) var selectedPresetID: UUID?
+
+    /// Built-in presets followed by the user's saved ones.
+    var allPresets: [EQPreset] { EQPreset.builtIns + customPresets }
 
     /// Master EQ on/off (bypasses the whole node).
     @Published var isEnabled: Bool = true {
@@ -46,6 +51,7 @@ final class EQEngine: ObservableObject {
                    gain: band.gain,
                    isEnabled: !band.bypass)
         }
+        customPresets = EQPresetStore.load()
     }
 
     /// All current gains, in band order — handy for saving presets.
@@ -57,6 +63,7 @@ final class EQEngine: ObservableObject {
         let clamped = min(max(gain, Self.minGain), Self.maxGain)
         eqNode.bands[index].gain = clamped
         bands[index].gain = clamped
+        selectedPresetID = nil    // manual edit = no longer a stock preset
     }
 
     /// Enable/bypass a single band.
@@ -71,6 +78,7 @@ final class EQEngine: ObservableObject {
         for index in bands.indices {
             setBand(index, gain: 0)
         }
+        selectedPresetID = EQPreset.flat.id
     }
 
     /// Apply an array of gain values (one per band, in order).
@@ -78,5 +86,30 @@ final class EQEngine: ObservableObject {
         for (index, gain) in preset.enumerated() where bands.indices.contains(index) {
             setBand(index, gain: gain)
         }
+    }
+
+    // MARK: - Presets
+
+    func apply(_ preset: EQPreset) {
+        apply(preset: preset.gains)
+        selectedPresetID = preset.id
+    }
+
+    /// Capture the current band gains as a new named preset.
+    func saveCustomPreset(named name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        let preset = EQPreset(name: trimmed, gains: gains)
+        customPresets.append(preset)
+        EQPresetStore.save(customPresets)
+        selectedPresetID = preset.id
+    }
+
+    /// Delete a custom preset (built-ins can't be removed).
+    func delete(_ preset: EQPreset) {
+        guard !preset.isBuiltIn else { return }
+        customPresets.removeAll { $0.id == preset.id }
+        EQPresetStore.save(customPresets)
+        if selectedPresetID == preset.id { selectedPresetID = nil }
     }
 }
