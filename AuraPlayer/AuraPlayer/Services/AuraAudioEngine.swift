@@ -4,8 +4,14 @@
 //
 //  Created by mobile on 5/7/26.
 //
-//  Core AVAudioEngine graph: playerNode -> mainMixerNode -> outputNode.
-//  EQ nodes will be inserted between player and mixer in a later phase.
+//  Dual-player graph so tracks can overlap for crossfade:
+//
+//      player[0] -> mixer[0] ─┐
+//                             ├─> eqNode -> mainMixerNode -> output
+//      player[1] -> mixer[1] ─┘
+//
+//  Only the player->mixer edge is format-specific; the EQ always sees one
+//  canonical format, so it is never rewired mid-playback.
 //
 
 import Foundation
@@ -18,26 +24,33 @@ final class AuraAudioEngine {
     // MARK: - Nodes
 
     let engine = AVAudioEngine()
-    let playerNode = AVAudioPlayerNode()
     let eqNode = AVAudioUnitEQ(numberOfBands: 10)
+
+    private let players = [AVAudioPlayerNode(), AVAudioPlayerNode()]
+    private let mixers  = [AVAudioMixerNode(), AVAudioMixerNode()]
 
     /// Standard 10-band graphic EQ centers (Hz).
     static let eqFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
-    // MARK: - State
+    // MARK: - Slot state
 
-    private var currentFormat: AVAudioFormat?        // format used to wire the graph
-    private var audioFile: AVAudioFile?              // currently loaded file
+    private struct Slot {
+        var file: AVAudioFile?
+        var format: AVAudioFormat?          // format this slot is currently wired for
+        var sampleRate: Double = 44_100
+        var lengthSamples: AVAudioFramePosition = 0
+        var seekFrame: AVAudioFramePosition = 0
+        var generation = 0
+    }
 
-    // Time tracking
-    private var sampleRate: Double = 44_100
-    private var lengthSamples: AVAudioFramePosition = 0
-    private var seekFrame: AVAudioFramePosition = 0
+    private var slots = [Slot(), Slot()]
+    private var activeIndex = 0
+    private var inactiveIndex: Int { 1 - activeIndex }
 
-    /// Bumped on every stop/seek/reschedule so stale completions are ignored.
-    private var playGeneration = 0
+    private var crossfadeTimer: Timer?
+    private(set) var isCrossfading = false
 
-    /// Fires when a track finishes playing naturally (not via stop/seek/skip).
+    /// Fires when the ACTIVE track finishes naturally (not via stop/seek/skip).
     var onTrackFinished: (() -> Void)?
 
     private init() {
@@ -45,40 +58,46 @@ final class AuraAudioEngine {
         registerObservers()
     }
 
-    // MARK: - Derived state
+    // MARK: - Convenience accessors
+
+    /// The node currently responsible for playback.
+    var playerNode: AVAudioPlayerNode { players[activeIndex] }
 
     var isPlaying: Bool { playerNode.isPlaying }
 
-    /// Total duration of the loaded file, in seconds.
     var duration: TimeInterval {
-        guard sampleRate > 0 else { return 0 }
-        return Double(lengthSamples) / sampleRate
+        let slot = slots[activeIndex]
+        guard slot.sampleRate > 0 else { return 0 }
+        return Double(slot.lengthSamples) / slot.sampleRate
     }
 
-    /// Current playback position, in seconds.
     var currentTime: TimeInterval {
+        let slot = slots[activeIndex]
+        let node = players[activeIndex]
         guard
-            let nodeTime = playerNode.lastRenderTime,
-            let playerTime = playerNode.playerTime(forNodeTime: nodeTime)
+            let nodeTime = node.lastRenderTime,
+            let playerTime = node.playerTime(forNodeTime: nodeTime)
         else {
-            return Double(seekFrame) / sampleRate
+            return Double(slot.seekFrame) / slot.sampleRate
         }
-        let current = Double(seekFrame + playerTime.sampleTime) / sampleRate
+        let current = Double(slot.seekFrame + playerTime.sampleTime) / slot.sampleRate
         return min(max(current, 0), duration)
     }
 
     // MARK: - Graph
 
     private func buildGraph() {
-        engine.attach(playerNode)
+        for index in 0..<2 {
+            engine.attach(players[index])
+            engine.attach(mixers[index])
+            engine.connect(players[index], to: mixers[index], format: nil)
+            engine.connect(mixers[index], to: eqNode, format: nil)
+            mixers[index].outputVolume = index == 0 ? 1 : 0
+        }
         engine.attach(eqNode)
         configureEQBands()
-
-        // player -> EQ -> mixer -> output
-        // nil format = engine picks the mixer's default; we reconnect per-file in reconnect(with:).
-        engine.connect(playerNode, to: eqNode, format: currentFormat)
-        engine.connect(eqNode, to: engine.mainMixerNode, format: currentFormat)
-        _ = engine.outputNode   // referencing realizes the graph
+        engine.connect(eqNode, to: engine.mainMixerNode, format: nil)
+        _ = engine.outputNode
     }
 
     /// Flat 10-band parametric EQ, 1 octave wide per band.
@@ -87,43 +106,39 @@ final class AuraAudioEngine {
             band.filterType = .parametric
             band.frequency = Self.eqFrequencies[index]
             band.bandwidth = 1.0
-            band.gain = 0.0          // flat
+            band.gain = 0.0
             band.bypass = false
         }
         eqNode.globalGain = 0.0
         eqNode.bypass = false
     }
 
-    /// Reconnect the chain with a specific file format (called from play()).
-    ///
-    /// The engine must be stopped while rewiring: AVAudioUnitEQ rejects a live
-    /// format change with -10868 (kAudioUnitErr_FormatNotSupported).
-    func reconnect(with format: AVAudioFormat) {
-        // Nothing to do if the chain is already wired for this exact format.
-        if let currentFormat, currentFormat == format { return }
-        currentFormat = format
+    /// Wire one player to its mixer for a specific file format.
+    /// Returns false if a rewire was needed but the engine is mid-crossfade.
+    @discardableResult
+    private func wire(slot index: Int, format: AVAudioFormat) -> Bool {
+        if let existing = slots[index].format, existing == format { return true }
+
+        // Reconnecting requires a brief stop; never do that during a crossfade.
+        if isCrossfading { return false }
 
         let wasRunning = engine.isRunning
         engine.stop()
-
-        engine.disconnectNodeOutput(playerNode)
-        engine.disconnectNodeOutput(eqNode)
-        engine.connect(playerNode, to: eqNode, format: format)
-        engine.connect(eqNode, to: engine.mainMixerNode, format: format)
-
+        engine.disconnectNodeOutput(players[index])
+        engine.connect(players[index], to: mixers[index], format: format)
+        slots[index].format = format
         if wasRunning { start() }
+        return true
     }
 
     // MARK: - Lifecycle
 
-    /// Start the engine. Safe to call multiple times.
     @discardableResult
     func start() -> Bool {
         guard !engine.isRunning else { return true }
         do {
             engine.prepare()
             try engine.start()
-            print("✅ AuraAudioEngine started. isRunning = \(engine.isRunning)")
             return true
         } catch {
             print("⚠️ AuraAudioEngine failed to start: \(error)")
@@ -131,89 +146,160 @@ final class AuraAudioEngine {
         }
     }
 
-    func stopEngine() {
-        engine.stop()
-    }
+    func stopEngine() { engine.stop() }
 
     // MARK: - Playback
 
-    /// Load and play a local audio file.
+    /// Load and play immediately on the active slot (hard switch).
     func play(url: URL) {
+        cancelCrossfade()
+
         do {
             let file = try AVAudioFile(forReading: url)
-            audioFile = file
-            sampleRate = file.processingFormat.sampleRate
-            lengthSamples = file.length
-            seekFrame = 0
+            let index = activeIndex
 
-            reconnect(with: file.processingFormat)
+            slots[index].file = file
+            slots[index].sampleRate = file.processingFormat.sampleRate
+            slots[index].lengthSamples = file.length
+            slots[index].seekFrame = 0
+
+            players[inactiveIndex].stop()
+            mixers[inactiveIndex].outputVolume = 0
+            mixers[index].outputVolume = 1
+
+            wire(slot: index, format: file.processingFormat)
             start()
 
-            playGeneration += 1
-            let gen = playGeneration
-            playerNode.stop()
-            playerNode.scheduleFile(file, at: nil) { [weak self] in
-                guard let self else { return }
-                DispatchQueue.main.async {
-                    guard gen == self.playGeneration else { return }   // stale -> ignore
-                    print("ℹ️ Finished playing: \(url.lastPathComponent)")
-                    self.onTrackFinished?()
-                }
-            }
-            playerNode.play()
+            schedule(file: file, slot: index, startingFrame: nil)
+            players[index].play()
             print("▶️ Playing: \(url.lastPathComponent)")
         } catch {
             print("⚠️ Could not load audio file at \(url.lastPathComponent): \(error)")
         }
     }
 
-    /// Seek to a time offset. Works while playing or paused.
-    func seek(to time: TimeInterval) {
-        guard let file = audioFile else { return }
-        let wasPlaying = playerNode.isPlaying
-        let newFrame = AVAudioFramePosition(max(0, time) * sampleRate)
-        let framesToPlay = lengthSamples - newFrame
-        guard framesToPlay > 0 else { return }
+    /// Begin overlapping the next track. Returns false if a crossfade isn't
+    /// possible right now (already fading, or the file needs a graph rewire).
+    @discardableResult
+    func crossfade(to url: URL, duration: TimeInterval) -> Bool {
+        guard !isCrossfading, duration > 0 else { return false }
 
-        playGeneration += 1
-        let gen = playGeneration
-        playerNode.stop()
-        seekFrame = newFrame
-        playerNode.scheduleSegment(
-            file,
-            startingFrame: newFrame,
-            frameCount: AVAudioFrameCount(framesToPlay),
-            at: nil
-        ) { [weak self] in
+        guard let file = try? AVAudioFile(forReading: url) else { return false }
+        let next = inactiveIndex
+
+        // A format change needs an engine stop, which would break the overlap.
+        guard wire(slot: next, format: file.processingFormat) else { return false }
+
+        slots[next].file = file
+        slots[next].sampleRate = file.processingFormat.sampleRate
+        slots[next].lengthSamples = file.length
+        slots[next].seekFrame = 0
+
+        schedule(file: file, slot: next, startingFrame: nil)
+        mixers[next].outputVolume = 0
+        start()
+        players[next].play()
+
+        let outgoing = activeIndex
+        activeIndex = next              // time/seek now follow the new track
+        isCrossfading = true
+        ramp(from: outgoing, to: next, duration: duration)
+        print("🔀 Crossfading to: \(url.lastPathComponent)")
+        return true
+    }
+
+    private func ramp(from outgoing: Int, to incoming: Int, duration: TimeInterval) {
+        let step: TimeInterval = 0.05
+        var elapsed: TimeInterval = 0
+
+        crossfadeTimer?.invalidate()
+        crossfadeTimer = Timer.scheduledTimer(withTimeInterval: step, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            elapsed += step
+            let t = Float(min(1, elapsed / duration))
+            self.mixers[outgoing].outputVolume = 1 - t
+            self.mixers[incoming].outputVolume = t
+
+            if t >= 1 {
+                timer.invalidate()
+                self.crossfadeTimer = nil
+                self.players[outgoing].stop()
+                self.slots[outgoing].file = nil
+                self.isCrossfading = false
+            }
+        }
+    }
+
+    private func cancelCrossfade() {
+        crossfadeTimer?.invalidate()
+        crossfadeTimer = nil
+        isCrossfading = false
+    }
+
+    /// Schedule a file (or segment) on a slot, firing onTrackFinished only if
+    /// that slot is still the active one when it completes.
+    private func schedule(file: AVAudioFile, slot index: Int, startingFrame: AVAudioFramePosition?) {
+        slots[index].generation += 1
+        let gen = slots[index].generation
+
+        let completion: () -> Void = { [weak self] in
             guard let self else { return }
             DispatchQueue.main.async {
-                guard gen == self.playGeneration else { return }
+                guard gen == self.slots[index].generation else { return }  // stale
+                guard index == self.activeIndex else { return }            // outgoing track
                 self.onTrackFinished?()
             }
         }
 
+        players[index].stop()
+        if let startingFrame {
+            let frames = slots[index].lengthSamples - startingFrame
+            guard frames > 0 else { return }
+            players[index].scheduleSegment(file,
+                                           startingFrame: startingFrame,
+                                           frameCount: AVAudioFrameCount(frames),
+                                           at: nil,
+                                           completionHandler: completion)
+        } else {
+            players[index].scheduleFile(file, at: nil, completionHandler: completion)
+        }
+    }
+
+    /// Seek within the active track.
+    func seek(to time: TimeInterval) {
+        let index = activeIndex
+        guard let file = slots[index].file else { return }
+        let wasPlaying = players[index].isPlaying
+        let newFrame = AVAudioFramePosition(max(0, time) * slots[index].sampleRate)
+        guard slots[index].lengthSamples - newFrame > 0 else { return }
+
+        slots[index].seekFrame = newFrame
+        schedule(file: file, slot: index, startingFrame: newFrame)
+
         if wasPlaying {
             start()
-            playerNode.play()
+            players[index].play()
         }
     }
 
     func pause() {
         playerNode.pause()
-        print("⏸️ Paused")
     }
 
     func resume() {
         start()
         playerNode.play()
-        print("▶️ Resumed")
     }
 
     func stop() {
-        playGeneration += 1
-        playerNode.stop()
-        audioFile = nil
-        print("⏹️ Stopped")
+        cancelCrossfade()
+        for index in 0..<2 {
+            slots[index].generation += 1
+            players[index].stop()
+            slots[index].file = nil
+        }
+        mixers[activeIndex].outputVolume = 1
+        mixers[inactiveIndex].outputVolume = 0
     }
 
     // MARK: - Configuration changes
@@ -228,7 +314,6 @@ final class AuraAudioEngine {
     }
 
     @objc private func handleConfigChange(_ notification: Notification) {
-        // The graph was reset (e.g. output device changed). Rebuild & restart.
         print("ℹ️ Engine configuration changed — rebuilding graph.")
         let wasRunning = engine.isRunning
         buildGraph()

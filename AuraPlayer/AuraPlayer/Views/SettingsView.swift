@@ -45,6 +45,37 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Crossfade", isOn: $player.crossfadeEnabled)
+                        .tint(Color.accent)
+                        .foregroundStyle(Color.textPrimary)
+                        .listRowBackground(Color.surface)
+
+                    if player.crossfadeEnabled {
+                        VStack(alignment: .leading, spacing: AuraSpacing.xs) {
+                            HStack {
+                                Text("Duration")
+                                    .foregroundStyle(Color.textPrimary)
+                                Spacer()
+                                Text("\(Int(player.crossfadeDuration))s")
+                                    .font(.auraTimestamp)
+                                    .foregroundStyle(Color.accent)
+                            }
+                            Slider(value: $player.crossfadeDuration, in: 2...12, step: 1)
+                                .tint(Color.accent)
+                        }
+                        .listRowBackground(Color.surface)
+                    }
+                } header: {
+                    Text("Playback")
+                        .font(.auraCaption)
+                        .foregroundStyle(Color.textSecondary)
+                } footer: {
+                    Text("Tracks overlap when one ends. Manual skips are always instant.")
+                        .font(.auraCaption)
+                        .foregroundStyle(Color.textTertiary)
+                }
+
+                Section {
                     HStack {
                         Text("Tracks")
                             .foregroundStyle(Color.textPrimary)

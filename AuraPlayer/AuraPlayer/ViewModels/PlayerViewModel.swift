@@ -130,21 +130,85 @@ final class PlayerViewModel: ObservableObject {
         hasTrack = true
         countedThisPlay = false
         
+        updateMetadata(for: url)
+
+        startTicking()
+        publishNowPlaying()
+        loadWaveform(for: url)
+    }
+
+    /// Use metadata from the scanned track when we have it, else read tags async.
+    private func updateMetadata(for url: URL) {
         if let track = trackIndex[url] {
             currentTitle = track.title
             currentArtist = track.artist
             currentAlbum = track.album
-            currentArtwork = track.artworkData.flatMap({
-                UIImage(data: $0)
-            })
+            currentArtwork = track.artworkData.flatMap { UIImage(data: $0) }
         } else {
             currentAlbum = ""
-            loadMetadata(for: url) // fallback for the debug/bundle path
+            loadMetadata(for: url)      // fallback for the debug/bundle path
         }
-        
-        startTicking()
+    }
+
+    // MARK: - Crossfade
+
+    private enum CrossfadeKeys {
+        static let enabled = "player.crossfadeEnabled"
+        static let duration = "player.crossfadeDuration"
+    }
+
+    @Published var crossfadeEnabled: Bool = UserDefaults.standard.bool(forKey: CrossfadeKeys.enabled) {
+        didSet { UserDefaults.standard.set(crossfadeEnabled, forKey: CrossfadeKeys.enabled) }
+    }
+
+    /// Overlap length in seconds (2...12).
+    @Published var crossfadeDuration: Double = {
+        let stored = UserDefaults.standard.double(forKey: CrossfadeKeys.duration)
+        return stored > 0 ? stored : 6
+    }() {
+        didSet { UserDefaults.standard.set(crossfadeDuration, forKey: CrossfadeKeys.duration) }
+    }
+
+    /// The track that would play next, if any.
+    private var upcomingTrackURL: URL? {
+        guard !queue.isEmpty else { return nil }
+        if position < order.count - 1 { return queue[order[position + 1]] }
+        if repeatMode == .all, let first = order.first { return queue[first] }
+        return nil
+    }
+
+    /// Called from the ticker: start overlapping the next track near the end.
+    private func beginCrossfadeIfNeeded() {
+        guard crossfadeEnabled,
+              isPlaying,
+              repeatMode != .one,            // repeat-one shouldn't fade into itself
+              duration > 0,
+              !engine.isCrossfading,
+              let nextURL = upcomingTrackURL
+        else { return }
+
+        let remaining = duration - currentTime
+        guard remaining > 0, remaining <= crossfadeDuration else { return }
+
+        if engine.crossfade(to: nextURL, duration: crossfadeDuration) {
+            advancePositionAfterCrossfade()
+        }
+    }
+
+    /// The engine already switched tracks; move our queue pointer to match.
+    private func advancePositionAfterCrossfade() {
+        if position < order.count - 1 {
+            position += 1
+        } else {
+            position = 0
+        }
+        duration = engine.duration
+        if let url = currentTrackURL {
+            countedThisPlay = false
+            updateMetadata(for: url)
+            loadWaveform(for: url)
+        }
         publishNowPlaying()
-        loadWaveform(for: url)
     }
 
     /// Generate the waveform envelope off the main thread; cancels any in-flight job.
@@ -376,6 +440,8 @@ final class PlayerViewModel: ObservableObject {
                 self.onPlayedThreshold?(url)
             }
             
+            self.beginCrossfadeIfNeeded()
+
             self.tickCount += 1
             if self.tickCount % 10 == 0 {      // 0.5s × 10 = every 5s
                 self.refreshNowPlayingState()
