@@ -11,6 +11,7 @@ struct ContentView: View {
     @EnvironmentObject var player: PlayerViewModel
     @EnvironmentObject var library: LibraryViewModel
     @EnvironmentObject var stats: TrackStatsViewModel
+    @EnvironmentObject var eq: EQEngine
     
     @State private var showPlayer = false
     
@@ -62,6 +63,7 @@ struct ContentView: View {
             NowPlayingView()
                 .environmentObject(player)
                 .environmentObject(stats)
+                .environmentObject(eq)
         }
     }
 }

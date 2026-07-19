@@ -16,7 +16,10 @@ struct NowPlayingView: View {
     
     @Environment(\.dismiss) private var dismiss
     
+    @EnvironmentObject var eq: EQEngine
+
     @State private var showQueue = false
+    @State private var showEQ = false
     
     var body: some View {
         ZStack {
@@ -38,15 +41,29 @@ struct NowPlayingView: View {
         }
         .preferredColorScheme(.dark)
         .overlay(alignment: .topTrailing) {
-            Button {
-                showQueue = true
-            } label: {
-                Image(systemName: "list.bullet")
-                    .font(.auraTitle)
-                    .foregroundStyle(Color.textPrimary)
-                    .padding(AuraSpacing.lg)
+            HStack(spacing: AuraSpacing.md) {
+                Button {
+                    showEQ = true
+                } label: {
+                    Image(systemName: "slider.vertical.3")
+                        .font(.auraTitle)
+                        .foregroundStyle(Color.textPrimary)
+                }
+                .buttonStyle(ScaleButtonStyle())
+
+                Button {
+                    showQueue = true
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .font(.auraTitle)
+                        .foregroundStyle(Color.textPrimary)
+                }
+                .buttonStyle(ScaleButtonStyle())
             }
-            .buttonStyle(ScaleButtonStyle())
+            .padding(AuraSpacing.lg)
+        }
+        .sheet(isPresented: $showEQ) {
+            EQView().environmentObject(eq)
         }
         .sheet(isPresented: $showQueue) {
             QueueView()
