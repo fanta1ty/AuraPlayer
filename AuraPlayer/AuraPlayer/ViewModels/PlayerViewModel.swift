@@ -46,11 +46,13 @@ final class PlayerViewModel: ObservableObject {
     @Published var currentAlbum: String = ""
     @Published var currentArtwork: UIImage?
     @Published private(set) var hasTrack = false
+    @Published private(set) var waveform: [Float] = []
 
     // MARK: - Dependencies
 
     private let engine = AuraAudioEngine.shared
     private var timer: Timer?
+    private var waveformTask: Task<Void, Never>?
     private var trackIndex: [URL: Track] = [:]
     
     /// Fires once per play when the track passes the 30s threshold.
@@ -136,6 +138,18 @@ final class PlayerViewModel: ObservableObject {
         
         startTicking()
         publishNowPlaying()
+        loadWaveform(for: url)
+    }
+
+    /// Generate the waveform envelope off the main thread; cancels any in-flight job.
+    private func loadWaveform(for url: URL) {
+        waveformTask?.cancel()
+        waveform = []
+        waveformTask = Task { [weak self] in
+            let points = await WaveformGenerator.generate(url: url)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self?.waveform = points }
+        }
     }
 
     func togglePlayPause() {
@@ -154,6 +168,8 @@ final class PlayerViewModel: ObservableObject {
         currentArtist = ""
         currentAlbum = ""
         currentArtwork = nil
+        waveformTask?.cancel()
+        waveform = []
         stopTicking()
         LockScreenManager.shared.clear()
     }

@@ -175,11 +175,13 @@ struct NowPlayingView: View {
     
     private var seekBar: some View {
         VStack(spacing: AuraSpacing.sm) {
-            AuraSlider(
-                value: Binding(
-                    get: { player.progress },
-                    set: { player.seek(toProgress: $0) })
-            )
+            WaveformView(
+                samples: player.waveform,
+                progress: player.progress
+            ) { newProgress in
+                player.seek(toProgress: newProgress)
+            }
+            .frame(height: 48)
             HStack {
                 Text(Self.time(player.currentTime))
                 Spacer()
