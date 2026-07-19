@@ -28,6 +28,23 @@ struct AuraPlayerApp: App {
                 .environmentObject(playlists)
                 .environmentObject(eq)
                 .environmentObject(stats)
+                .onOpenURL { url in
+                    handleIncomingFile(url)
+                }
+        }
+    }
+
+    /// A file was handed to us from Safari, Mail, Files, etc.
+    /// Copy it into the library, rescan, then play it immediately.
+    private func handleIncomingFile(_ url: URL) {
+        guard let destination = AudioImporter.importFiles([url]).first else { return }
+        Task { @MainActor in
+            await library.scan()
+            if let track = library.tracks.first(where: { $0.url == destination }) {
+                player.load(tracks: [track])
+            } else {
+                player.play(url: destination)
+            }
         }
     }
 }
