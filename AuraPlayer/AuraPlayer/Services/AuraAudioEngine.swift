@@ -28,6 +28,10 @@ final class AuraAudioEngine {
 
     private let players = [AVAudioPlayerNode(), AVAudioPlayerNode()]
     private let mixers  = [AVAudioMixerNode(), AVAudioMixerNode()]
+    /// Sums both players before the EQ — effect nodes only accept one input.
+    private let submix  = AVAudioMixerNode()
+    /// Independent pitch (cents) and tempo (rate) control.
+    let timePitchNode = AVAudioUnitTimePitch()
 
     /// Standard 10-band graphic EQ centers (Hz).
     static let eqFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
@@ -87,15 +91,25 @@ final class AuraAudioEngine {
     // MARK: - Graph
 
     private func buildGraph() {
+        // Attach everything first — connecting an unattached node traps.
+        engine.attach(eqNode)
+        engine.attach(submix)
+        engine.attach(timePitchNode)
         for index in 0..<2 {
             engine.attach(players[index])
             engine.attach(mixers[index])
+        }
+
+        configureEQBands()
+
+        // players -> per-track mixers -> submix -> EQ -> main mixer -> output
+        for index in 0..<2 {
             engine.connect(players[index], to: mixers[index], format: nil)
-            engine.connect(mixers[index], to: eqNode, format: nil)
+            engine.connect(mixers[index], to: submix, format: nil)
             mixers[index].outputVolume = index == 0 ? 1 : 0
         }
-        engine.attach(eqNode)
-        configureEQBands()
+        engine.connect(submix, to: timePitchNode, format: nil)
+        engine.connect(timePitchNode, to: eqNode, format: nil)
         engine.connect(eqNode, to: engine.mainMixerNode, format: nil)
         _ = engine.outputNode
     }

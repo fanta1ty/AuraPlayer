@@ -10,6 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var library: LibraryViewModel
     @EnvironmentObject var player: PlayerViewModel
+    @StateObject private var effects = PlaybackEffects.shared
 
     var body: some View {
         NavigationStack {
@@ -71,6 +72,62 @@ struct SettingsView: View {
                         .foregroundStyle(Color.textSecondary)
                 } footer: {
                     Text("Tracks overlap when one ends. Manual skips are always instant.")
+                        .font(.auraCaption)
+                        .foregroundStyle(Color.textTertiary)
+                }
+
+                Section {
+                    VStack(alignment: .leading, spacing: AuraSpacing.xs) {
+                        HStack {
+                            Text("Pitch")
+                                .foregroundStyle(Color.textPrimary)
+                            Spacer()
+                            Text(effects.semitones == 0
+                                 ? "0"
+                                 : String(format: "%+.0f semitones", effects.semitones))
+                                .font(.auraTimestamp)
+                                .foregroundStyle(effects.semitones == 0 ? Color.textTertiary : Color.accent)
+                        }
+                        Slider(
+                            value: Binding(get: { Double(effects.semitones) },
+                                           set: { effects.setSemitones(Float($0)) }),
+                            in: Double(PlaybackEffects.minSemitones)...Double(PlaybackEffects.maxSemitones),
+                            step: 1
+                        )
+                        .tint(Color.accent)
+                    }
+                    .listRowBackground(Color.surface)
+
+                    VStack(alignment: .leading, spacing: AuraSpacing.xs) {
+                        HStack {
+                            Text("Speed")
+                                .foregroundStyle(Color.textPrimary)
+                            Spacer()
+                            Text(String(format: "%.2f×", effects.rate))
+                                .font(.auraTimestamp)
+                                .foregroundStyle(effects.rate == 1 ? Color.textTertiary : Color.accent)
+                        }
+                        Slider(
+                            value: Binding(get: { Double(effects.rate) },
+                                           set: { effects.setRate(Float($0)) }),
+                            in: Double(PlaybackEffects.minRate)...Double(PlaybackEffects.maxRate),
+                            step: 0.05
+                        )
+                        .tint(Color.accent)
+                    }
+                    .listRowBackground(Color.surface)
+
+                    if effects.isModified {
+                        Button("Reset Pitch & Speed") { effects.reset() }
+                            .foregroundStyle(Color.accent)
+                            .listRowBackground(Color.surface)
+                    }
+                } header: {
+                    Text("Pitch & Speed")
+                        .font(.auraCaption)
+                        .foregroundStyle(Color.textSecondary)
+                } footer: {
+                    Text("Pitch and speed change independently — shift key without changing tempo, or vice versa.")
                         .font(.auraCaption)
                         .foregroundStyle(Color.textTertiary)
                 }
