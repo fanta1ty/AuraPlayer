@@ -32,7 +32,7 @@ final class EQEngine: ObservableObject {
 
     @Published private(set) var bands: [EQBand] = []
     @Published private(set) var customPresets: [EQPreset] = []
-    @Published private(set) var selectedPresetID: UUID?
+    @Published private(set) var selectedPresetID: String?
     @Published private(set) var preamp: Float = 0
 
     /// Built-in presets followed by the user's saved ones.
@@ -129,9 +129,10 @@ final class EQEngine: ObservableObject {
     // MARK: - Persistence
 
     private enum Keys {
-        static let gains   = "eq.gains"
-        static let preamp  = "eq.preamp"
-        static let enabled = "eq.enabled"
+        static let gains    = "eq.gains"
+        static let preamp   = "eq.preamp"
+        static let enabled  = "eq.enabled"
+        static let selected = "eq.selectedPreset"
     }
 
     private func persistSettings() {
@@ -141,6 +142,7 @@ final class EQEngine: ObservableObject {
         }
         defaults.set(preamp, forKey: Keys.preamp)
         defaults.set(isEnabled, forKey: Keys.enabled)
+        defaults.set(selectedPresetID, forKey: Keys.selected)
     }
 
     private func restoreSettings() {
@@ -164,5 +166,8 @@ final class EQEngine: ObservableObject {
             isEnabled = enabled          // assignment in init doesn't fire didSet…
             eqNode.bypass = !enabled     // …so set the node directly
         }
+
+        // Restore which preset chip is highlighted (IDs are stable across launches).
+        selectedPresetID = defaults.string(forKey: Keys.selected)
     }
 }
