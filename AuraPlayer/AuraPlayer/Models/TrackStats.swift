@@ -12,4 +12,6 @@ import Foundation
 struct TrackStats: Codable, Hashable {
     var rating: Int = 0        // 0...5
     var playCount: Int = 0
+    /// When this track last passed the play-count threshold.
+    var lastPlayed: Date?
 }

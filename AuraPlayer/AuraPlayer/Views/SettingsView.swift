@@ -10,12 +10,21 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var library: LibraryViewModel
     @EnvironmentObject var player: PlayerViewModel
+    @EnvironmentObject var stats: TrackStatsViewModel
     @StateObject private var effects = PlaybackEffects.shared
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
+                    NavigationLink {
+                        ListeningHistoryView()
+                    } label: {
+                        Label("Listening History", systemImage: "clock")
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                    .listRowBackground(Color.surface)
+
                     NavigationLink {
                         DownloadView()
                     } label: {

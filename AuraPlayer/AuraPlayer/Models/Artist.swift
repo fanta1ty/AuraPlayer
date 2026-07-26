@@ -17,10 +17,15 @@ struct Artist: Identifiable {
     var trackCount: Int { tracks.count }
 
     var albums: [Album] {
-        Dictionary(grouping: tracks, by: { $0.album })
-            .map { title, tracks in
-                Album(id: title, title: title, artist: name, tracks: tracks)
-            }
+        Dictionary(grouping: tracks) { track in
+            "\(track.album)\u{1F}\(track.effectiveAlbumArtist)"
+        }
+        .map { key, tracks in
+            Album(id: key,
+                  title: tracks.first?.album ?? "Unknown Album",
+                  artist: tracks.first?.effectiveAlbumArtist ?? name,
+                  tracks: tracks)
+        }
             .sorted {
                 $0.title
                     .localizedCaseInsensitiveCompare(

@@ -14,6 +14,12 @@ struct Track: Identifiable, Hashable {
     var title: String
     var artist: String
     var album: String
+    /// Credited album artist — differs from `artist` on compilations, and is
+    /// what albums should be grouped by.
+    var albumArtist: String?
+    var composer: String?
+    var trackNumber: Int?
+    var discNumber: Int?
     var genre: String?
     var year: String?
     var duration: TimeInterval
@@ -30,6 +36,10 @@ struct Track: Identifiable, Hashable {
         title: String,
         artist: String,
         album: String,
+        albumArtist: String? = nil,
+        composer: String? = nil,
+        trackNumber: Int? = nil,
+        discNumber: Int? = nil,
         genre: String? = nil,
         year: String? = nil,
         duration: TimeInterval,
@@ -41,11 +51,23 @@ struct Track: Identifiable, Hashable {
         self.title = title
         self.artist = artist
         self.album = album
+        self.albumArtist = albumArtist
+        self.composer = composer
+        self.trackNumber = trackNumber
+        self.discNumber = discNumber
         self.genre = genre
         self.year = year
         self.duration = duration
         self.url = url
         self.artworkData = artworkData
         self.dateAdded = dateAdded
+    }
+
+    /// Who the album belongs to — falls back to the track artist.
+    var effectiveAlbumArtist: String { albumArtist ?? artist }
+
+    /// Sort key that puts an album in disc/track order.
+    var albumSortKey: (Int, Int, String) {
+        (discNumber ?? 1, trackNumber ?? Int.max, title.lowercased())
     }
 }

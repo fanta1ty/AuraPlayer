@@ -25,6 +25,19 @@ struct TrackInfoView: View {
                     row("Title", track.title)
                     row("Artist", track.artist)
                     row("Album", track.album)
+                    if let albumArtist = track.albumArtist, albumArtist != track.artist {
+                        row("Album Artist", albumArtist)
+                    }
+                    if let composer = track.composer, !composer.isEmpty {
+                        row("Composer", composer)
+                    }
+                    if let number = track.trackNumber {
+                        if let disc = track.discNumber {
+                            row("Track", "\(number) (disc \(disc))")
+                        } else {
+                            row("Track", "\(number)")
+                        }
+                    }
                     if let genre = track.genre, !genre.isEmpty { row("Genre", genre) }
                     if let year = track.year, !year.isEmpty { row("Year", year) }
                     row("Duration", TrackRow.durationString(track.duration))

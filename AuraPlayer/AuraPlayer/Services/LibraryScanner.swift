@@ -98,14 +98,51 @@ enum LibraryScanner {
             }
         }
         
+        // Album artist, composer and track/disc numbers aren't part of
+        // commonMetadata — they live in format-specific tags.
+        var albumArtist: String?
+        var composer: String?
+        var trackNumber: Int?
+        var discNumber: Int?
+
+        if let all = try? await asset.load(.metadata) {
+            for item in all {
+                guard let identifier = item.identifier else { continue }
+                switch identifier {
+                case .id3MetadataBand, .iTunesMetadataAlbumArtist:
+                    if albumArtist == nil {
+                        albumArtist = try? await item.load(.stringValue)
+                    }
+                case .id3MetadataComposer, .iTunesMetadataComposer:
+                    if composer == nil {
+                        composer = try? await item.load(.stringValue)
+                    }
+                case .id3MetadataTrackNumber, .iTunesMetadataTrackNumber:
+                    if trackNumber == nil {
+                        trackNumber = await leadingNumber(from: item)
+                    }
+                case .id3MetadataPartOfASet, .iTunesMetadataDiscNumber:
+                    if discNumber == nil {
+                        discNumber = await leadingNumber(from: item)
+                    }
+                default:
+                    break
+                }
+            }
+        }
+
         let dateAdded = (
             try? url.resourceValues(forKeys: [.creationDateKey]).creationDate
         ) ?? .now
-        
+
         return Track(
             title: title,
             artist: artist,
             album: album,
+            albumArtist: albumArtist,
+            composer: composer,
+            trackNumber: trackNumber,
+            discNumber: discNumber,
             genre: genre,
             year: year,
             duration: duration,
@@ -113,5 +150,22 @@ enum LibraryScanner {
             artworkData: artworkData,
             dateAdded: dateAdded
         )
+    }
+
+    /// Track/disc numbers appear as a number, "3", "3/12", or raw bytes
+    /// depending on the container. Take the leading value in each case.
+    private static func leadingNumber(from item: AVMetadataItem) async -> Int? {
+        if let number = try? await item.load(.numberValue) {
+            return number.intValue
+        }
+        if let string = try? await item.load(.stringValue) {
+            let head = string.split(separator: "/").first.map(String.init) ?? string
+            return Int(head.trimmingCharacters(in: .whitespaces))
+        }
+        if let data = try? await item.load(.dataValue), data.count >= 4 {
+            // iTunes packs disc/track as big-endian 16-bit pairs.
+            return Int(data[2]) << 8 | Int(data[3])
+        }
+        return nil
     }
 }

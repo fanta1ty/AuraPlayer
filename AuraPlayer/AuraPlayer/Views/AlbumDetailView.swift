@@ -13,14 +13,18 @@ struct AlbumDetailView: View {
     let album: Album
     @EnvironmentObject var player: PlayerViewModel
     
+    /// Albums play in disc/track order — never alphabetically.
     private var tracks: [Track] {
-        album.tracks
-            .sorted {
-                $0.title
-                    .localizedCaseInsensitiveCompare(
-                        $1.title
-                    ) == .orderedAscending
-            }
+        album.tracks.sorted { $0.albumSortKey < $1.albumSortKey }
+    }
+
+    /// True when the album has real track numbers to show.
+    private var hasTrackNumbers: Bool {
+        album.tracks.contains { $0.trackNumber != nil }
+    }
+
+    private var isMultiDisc: Bool {
+        Set(album.tracks.compactMap(\.discNumber)).count > 1
     }
     
     var body: some View {
@@ -28,10 +32,12 @@ struct AlbumDetailView: View {
             Section {
                 ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
                     HStack(spacing: AuraSpacing.md) {
-                        Text("\(index + 1)")
+                        // Show the real track number when tagged, "1-4" style
+                        // for multi-disc sets, else fall back to position.
+                        Text(label(for: track, fallback: index + 1))
                             .font(.auraCaption)
                             .foregroundStyle(Color.textTertiary)
-                            .frame(width: 24)
+                            .frame(width: isMultiDisc ? 34 : 24, alignment: .trailing)
                         Text(track.title)
                             .font(.auraBody)
                             .foregroundStyle(
@@ -58,6 +64,14 @@ struct AlbumDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
     
+    private func label(for track: Track, fallback: Int) -> String {
+        guard hasTrackNumbers, let number = track.trackNumber else { return "\(fallback)" }
+        if isMultiDisc, let disc = track.discNumber {
+            return "\(disc)-\(number)"
+        }
+        return "\(number)"
+    }
+
     private var header: some View {
         VStack(spacing: AuraSpacing.md) {
             Group {

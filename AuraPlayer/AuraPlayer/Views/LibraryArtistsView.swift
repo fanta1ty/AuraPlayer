@@ -14,11 +14,13 @@ struct LibraryArtistsView: View {
     @EnvironmentObject var library: LibraryViewModel
     
     private var artists: [Artist] {
-        Dictionary(grouping: library.tracks) { $0.artist.lowercased() }
+        // Group by album artist so a compilation lists under its credited
+        // artist instead of scattering across every featured performer.
+        Dictionary(grouping: library.tracks) { $0.effectiveAlbumArtist.lowercased() }
             .map { key, tracks in
                 Artist(
                     id: key,
-                    name: tracks.first?.artist ?? key,
+                    name: tracks.first?.effectiveAlbumArtist ?? key,
                     tracks: tracks
                 )
             }
