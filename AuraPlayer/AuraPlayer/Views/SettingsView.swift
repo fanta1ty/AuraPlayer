@@ -153,6 +153,7 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
+            .safeAreaPadding(.bottom, AuraLayout.miniPlayerClearance)
             .background(Color.background)
             .navigationTitle("Settings")
         }

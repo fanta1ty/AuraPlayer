@@ -62,6 +62,7 @@ enum LibraryScanner {
         var artist = "Unknown Artist"
         var album = "Unknown Album"
         var genre: String?
+        var year: String?
         var artworkData: Data?
         var duration: TimeInterval = 0
         
@@ -87,6 +88,8 @@ enum LibraryScanner {
                     }
                 case .commonKeyType:
                     genre = try? await item.load(.stringValue)
+                case .commonKeyCreationDate:
+                    year = try? await item.load(.stringValue)
                 case .commonKeyArtwork:
                     artworkData = try? await item.load(.dataValue)
                 default:
@@ -104,6 +107,7 @@ enum LibraryScanner {
             artist: artist,
             album: album,
             genre: genre,
+            year: year,
             duration: duration,
             url: url,
             artworkData: artworkData,

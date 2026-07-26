@@ -72,6 +72,7 @@ struct LibraryArtistsView: View {
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
                         .background(Color.background)
+                        .safeAreaPadding(.bottom, AuraLayout.miniPlayerClearance)
                         .overlay(alignment: .trailing) { sectionIndex(proxy) }
                     }
                 }

@@ -57,6 +57,7 @@ struct LibraryAlbumsView: View {
                             }
                         }
                         .padding(AuraSpacing.md)
+                        .padding(.bottom, AuraLayout.miniPlayerClearance)
                     }
                 }
             }

@@ -18,6 +18,7 @@ struct LibrarySongsView: View {
     @State private var searchText = ""
     @State private var showImporter = false
     @State private var isImporting = false
+    @State private var editingTrack: Track?
     @State private var sort: SortOrder = .title
     
     enum SortOrder: String, CaseIterable, Identifiable {
@@ -96,6 +97,10 @@ struct LibrarySongsView: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Search songs or artists")
+            .sheet(item: $editingTrack) { track in
+                MetadataEditorView(track: track)
+                    .environmentObject(library)
+            }
             .sheet(isPresented: $showImporter) {
                 DocumentPickerView { urls in
                     showImporter = false
@@ -124,6 +129,12 @@ struct LibrarySongsView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { play(track) }
                 .contextMenu {
+                    Button {
+                        editingTrack = track
+                    } label: {
+                        Label("Edit Info", systemImage: "pencil")
+                    }
+
                     Menu("Add to Playlist") {
                         ForEach(playlists.playlists) { playlist in
                             Button(playlist.name) {
@@ -138,6 +149,7 @@ struct LibrarySongsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color.background)
+        .safeAreaPadding(.bottom, AuraLayout.miniPlayerClearance)
         .refreshable { await library.scan() }
     }
     

@@ -17,14 +17,20 @@ final class LibraryViewModel: ObservableObject {
     
     func scan() async {
         isScanning = true
-        tracks = await LibraryScanner.scanDocuments()
+        let scanned = await LibraryScanner.scanDocuments()
+        tracks = MetadataOverrideViewModel.shared.applying(scanned)
         isScanning = false
 
         // Show the library immediately, then fill in missing artwork
         // from cache/network and republish.
         let enhanced = await MetadataEnhancer.enhance(tracks)
         if enhanced.count == tracks.count {
-            tracks = enhanced
+            tracks = MetadataOverrideViewModel.shared.applying(enhanced)
         }
+    }
+
+    /// Re-apply user edits without re-reading every file (fast path after editing).
+    func refreshOverrides() {
+        tracks = MetadataOverrideViewModel.shared.applying(tracks)
     }
 }

@@ -39,6 +39,7 @@ struct PlaylistsView: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
+                    .safeAreaPadding(.bottom, AuraLayout.miniPlayerClearance)
                 }
             }
             .background(Color.background)

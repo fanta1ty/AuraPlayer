@@ -15,6 +15,7 @@ struct Track: Identifiable, Hashable {
     var artist: String
     var album: String
     var genre: String?
+    var year: String?
     var duration: TimeInterval
     let url: URL
     var artworkData: Data?
@@ -28,6 +29,7 @@ struct Track: Identifiable, Hashable {
         artist: String,
         album: String,
         genre: String? = nil,
+        year: String? = nil,
         duration: TimeInterval,
         url: URL,
         artworkData: Data? = nil,
@@ -40,6 +42,7 @@ struct Track: Identifiable, Hashable {
         self.artist = artist
         self.album = album
         self.genre = genre
+        self.year = year
         self.duration = duration
         self.url = url
         self.artworkData = artworkData

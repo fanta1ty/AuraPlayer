@@ -9,6 +9,11 @@
 
 import SwiftUI
 
+enum AuraLayout {
+    /// Extra bottom space so scrollable content clears the floating mini player.
+    static let miniPlayerClearance: CGFloat = 72
+}
+
 enum AuraSpacing {
     static let xs: CGFloat  = 4
     static let sm: CGFloat  = 8

@@ -18,39 +18,40 @@ struct ContentView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView {
-                LibrarySongsView()
-                    .tabItem {
-                        Label("Songs", systemImage: "music.note")
-                    }
-                
-                LibraryAlbumsView()
-                    .tabItem {
-                        Label("Albums", systemImage: "square.stack")
-                    }
-                
-                LibraryArtistsView()
-                    .tabItem {
-                        Label("Artists", systemImage: "music.mic")
-                    }
-                
-                PlaylistsView()
-                    .tabItem {
-                        Label("Playlists", systemImage: "music.note.list")
-                    }
+            LibrarySongsView()
+                .tabItem {
+                    Label("Songs", systemImage: "music.note")
+                }
 
-                SettingsView()
-                    .tabItem {
-                        Label("Settings", systemImage: "gearshape")
-                    }
+            LibraryAlbumsView()
+                .tabItem {
+                    Label("Albums", systemImage: "square.stack")
+                }
+
+            LibraryArtistsView()
+                .tabItem {
+                    Label("Artists", systemImage: "music.mic")
+                }
+
+            PlaylistsView()
+                .tabItem {
+                    Label("Playlists", systemImage: "music.note.list")
+                }
+
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
             }
             .tint(Color.accent)
-            
+
+            // Floats above the tab bar. Lists add their own bottom padding
+            // (AuraLayout.miniPlayerClearance) so no row hides behind it.
             if player.hasTrack {
                 AuraNowPlayingBar { showPlayer = true }
                     .padding(.horizontal, AuraSpacing.md)
-                    .padding(.bottom, 49) // clear the tab bar
-                    .transition(.move(edge: .bottom)
-                        .combined(with: .opacity))
+                    .padding(.bottom, 49)   // tab bar height
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.spring(duration: 0.35), value: player.hasTrack)
