@@ -95,14 +95,29 @@ struct LibrarySongsView: View {
                     }
                     .disabled(isImporting)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showGlobalSearch = true
-                    } label: {
-                        Image(systemName: "sparkle.magnifyingglass")
-                            .foregroundStyle(Color.accent)
+                // While selecting, the edit action sits in the top bar — a
+                // .bottomBar item ends up hidden behind the tab bar and
+                // mini player.
+                if isSelecting {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showBatchEdit = true
+                        } label: {
+                            Text(selection.isEmpty ? "Edit" : "Edit (\(selection.count))")
+                        }
+                        .disabled(selection.isEmpty)
+                        .foregroundStyle(selection.isEmpty ? Color.textDisabled : Color.accent)
                     }
-                    .accessibilityLabel("Search everything")
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showGlobalSearch = true
+                        } label: {
+                            Image(systemName: "sparkle.magnifyingglass")
+                                .foregroundStyle(Color.accent)
+                        }
+                        .accessibilityLabel("Search everything")
+                    }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -113,18 +128,6 @@ struct LibrarySongsView: View {
                         }
                     }
                     .foregroundStyle(Color.accent)
-                }
-
-                if isSelecting {
-                    ToolbarItem(placement: .bottomBar) {
-                        Button {
-                            showBatchEdit = true
-                        } label: {
-                            Label("Edit \(selection.count) Selected", systemImage: "pencil")
-                        }
-                        .disabled(selection.isEmpty)
-                        .foregroundStyle(selection.isEmpty ? Color.textDisabled : Color.accent)
-                    }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {

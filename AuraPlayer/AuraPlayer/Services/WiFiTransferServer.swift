@@ -36,25 +36,31 @@ final class WiFiTransferServer: ObservableObject {
         do {
             let parameters = NWParameters.tcp
             parameters.allowLocalEndpointReuse = true
-            let listener = try NWListener(using: parameters, port: port)
+            let listener = try NWListener(using: parameters, on: port)
 
-            listener.newConnectionHandler = { [weak self] connection in
+            listener.newConnectionHandler = { [weak self] (connection: NWConnection) in
                 connection.start(queue: .global(qos: .userInitiated))
-                Task { @MainActor in self?.receive(on: connection, buffer: Data()) }
+                Task { @MainActor [weak self] in
+                    self?.receive(on: connection, buffer: Data())
+                }
             }
 
             listener.stateUpdateHandler = { [weak self] state in
-                Task { @MainActor in
-                    switch state {
-                    case .ready:
+                switch state {
+                case .ready:
+                    let url = Self.localAddress().map { "http://\($0):8080" }
+                    Task { @MainActor [weak self] in
                         self?.isRunning = true
-                        self?.address = Self.localAddress().map { "http://\($0):8080" }
-                    case .failed(let error):
-                        self?.lastError = error.localizedDescription
-                        self?.stop()
-                    default:
-                        break
+                        self?.address = url
                     }
+                case .failed(let error):
+                    let description = error.localizedDescription
+                    Task { @MainActor [weak self] in
+                        self?.lastError = description
+                        self?.stop()
+                    }
+                default:
+                    break
                 }
             }
 
@@ -80,31 +86,34 @@ final class WiFiTransferServer: ObservableObject {
 
             guard error == nil else { connection.cancel(); return }
 
-            var data = buffer
-            if let chunk { data.append(chunk) }
+            // Build the accumulated data as an immutable value before hopping
+            // actors — a captured `var` isn't Sendable in Swift 6.
+            let data = chunk.map { buffer + $0 } ?? buffer
+            let finished = isComplete
 
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self else { connection.cancel(); return }
-
-                // Wait until the full request (headers + declared body) has arrived.
-                guard let (head, headerLength) = HTTPRequest.parseHead(data) else {
-                    if isComplete { connection.cancel() }
-                    else { self.receive(on: connection, buffer: data) }
-                    return
-                }
-
-                let expected = headerLength + head.contentLength
-                guard data.count >= expected else {
-                    if isComplete { connection.cancel() }
-                    else { self.receive(on: connection, buffer: data) }
-                    return
-                }
-
-                var request = head
-                request.body = data.subdata(in: headerLength..<expected)
-                self.respond(to: request, on: connection)
+                self.handle(data: data, isComplete: finished, on: connection)
             }
         }
+    }
+
+    /// Parse what we have; wait for more if the request is incomplete.
+    private func handle(data: Data, isComplete: Bool, on connection: NWConnection) {
+        guard let (head, headerLength) = HTTPRequest.parseHead(data) else {
+            if isComplete { connection.cancel() } else { receive(on: connection, buffer: data) }
+            return
+        }
+
+        let expected = headerLength + head.contentLength
+        guard data.count >= expected else {
+            if isComplete { connection.cancel() } else { receive(on: connection, buffer: data) }
+            return
+        }
+
+        var request = head
+        request.body = data.subdata(in: headerLength..<expected)
+        respond(to: request, on: connection)
     }
 
     private func respond(to request: HTTPRequest, on connection: NWConnection) {
@@ -192,7 +201,8 @@ final class WiFiTransferServer: ObservableObject {
     }
 
     /// The device's Wi-Fi IPv4 address, so we can show a reachable URL.
-    private static func localAddress() -> String? {
+    /// Pure C API with no shared state, so it's safe off the main actor.
+    nonisolated private static func localAddress() -> String? {
         var address: String?
         var head: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&head) == 0, let first = head else { return nil }
@@ -222,77 +232,199 @@ final class WiFiTransferServer: ObservableObject {
 
         let rows = files.map { file in
             """
-            <tr>
-              <td>\(escape(file.name))</td>
-              <td class="size">\(StorageManager.formatted(file.size))</td>
-              <td>
-                <form method="post" action="/delete?file=\(encode(file.name))"
-                      onsubmit="return confirm('Delete \(escape(file.name))?')">
-                  <button class="del">Delete</button>
-                </form>
-              </td>
-            </tr>
+            <li class="row">
+              <span class="ico">\(Self.icon(for: file.name))</span>
+              <span class="name" title="\(escape(file.name))">\(escape(file.name))</span>
+              <span class="size">\(StorageManager.formatted(file.size))</span>
+              <button class="del" data-file="\(escape(file.name))" title="Delete">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none"
+                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                  <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>
+                </svg>
+              </button>
+            </li>
             """
         }.joined()
 
+        let emptyState = files.isEmpty ? """
+            <li class="empty">Nothing here yet — drop some music above.</li>
+            """ : ""
+
         return """
         <!doctype html>
-        <html><head>
+        <html lang="en"><head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>AuraPlayer</title>
         <style>
-          :root { color-scheme: dark; }
-          body { margin:0; padding:40px 20px; background:#0A0C10; color:#F2F5F7;
-                 font:16px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
-          .wrap { max-width:720px; margin:0 auto; }
-          h1 { font-size:28px; margin:0 0 4px; }
-          .sub { color:#848C96; font-size:13px; margin-bottom:32px; }
-          .drop { border:2px dashed #1A1E26; border-radius:16px; padding:40px 20px;
-                  text-align:center; margin-bottom:32px; transition:.2s; }
-          .drop.over { border-color:#1CE3CE; background:rgba(28,227,206,.06); }
-          .drop p { margin:0 0 16px; color:#9AA3AD; }
-          button { background:#1CE3CE; color:#0A0C10; border:0; border-radius:10px;
-                   padding:10px 20px; font-size:15px; font-weight:600; cursor:pointer; }
-          button:hover { background:#3DF0DD; }
-          .del { background:transparent; color:#F87171; padding:4px 10px; font-weight:500; }
-          .del:hover { background:rgba(248,113,113,.12); }
-          table { width:100%; border-collapse:collapse; }
-          td { padding:12px 8px; border-bottom:1px solid #1A1E26; }
-          .size { color:#848C96; font-size:13px; white-space:nowrap; }
-          form { display:inline; margin:0; }
-          .total { color:#848C96; font-size:13px; margin-bottom:12px; }
+          :root {
+            --bg:#0A0C10; --surface:#12151B; --raised:#1A1E26;
+            --text:#F2F5F7; --dim:#9AA3AD; --faint:#848C96;
+            --accent:#1CE3CE; --glow:#3DF0DD; --danger:#F87171;
+            color-scheme: dark;
+          }
+          * { box-sizing:border-box; }
+          body {
+            margin:0; padding:56px 24px 80px; background:var(--bg); color:var(--text);
+            font:15px/1.5 -apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
+            -webkit-font-smoothing:antialiased;
+            background-image:radial-gradient(ellipse 70% 50% at 50% -10%, rgba(28,227,206,.07), transparent 70%);
+          }
+          .wrap { max-width:680px; margin:0 auto; }
+
+          header { display:flex; align-items:center; gap:14px; margin-bottom:6px; }
+          .bars { display:flex; align-items:center; gap:3px; height:30px;
+                  filter:drop-shadow(0 0 8px rgba(28,227,206,.55)); }
+          .bars i { width:4px; border-radius:2px; background:var(--accent); display:block; }
+          .bars i:nth-child(1){height:9px}  .bars i:nth-child(2){height:16px}
+          .bars i:nth-child(3){height:26px} .bars i:nth-child(4){height:30px;background:var(--text)}
+          .bars i:nth-child(5){height:26px} .bars i:nth-child(6){height:16px}
+          .bars i:nth-child(7){height:9px}
+          h1 { font-size:21px; font-weight:600; letter-spacing:-.02em; margin:0; }
+          .sub { color:var(--faint); font-size:13px; margin:0 0 36px 44px; }
+
+          .drop {
+            position:relative; border:1.5px dashed #232833; border-radius:18px;
+            padding:44px 24px; text-align:center; background:var(--surface);
+            transition:border-color .18s, background .18s, transform .18s; cursor:pointer;
+          }
+          .drop:hover { border-color:#2f3644; }
+          .drop.over {
+            border-color:var(--accent); background:rgba(28,227,206,.06);
+            transform:scale(1.008);
+            box-shadow:0 0 0 4px rgba(28,227,206,.08), 0 0 40px rgba(28,227,206,.12);
+          }
+          .drop svg { color:var(--accent); margin-bottom:14px;
+                      filter:drop-shadow(0 0 10px rgba(28,227,206,.4)); }
+          .drop .big { font-size:16px; font-weight:500; }
+          .drop .small { color:var(--faint); font-size:13px; margin-top:6px; }
           input[type=file] { display:none; }
-          label.pick { display:inline-block; background:#1CE3CE; color:#0A0C10;
-                       border-radius:10px; padding:10px 20px; font-weight:600; cursor:pointer; }
+
+          .bar { height:3px; border-radius:2px; background:var(--raised);
+                 margin-top:22px; overflow:hidden; display:none; }
+          .bar.on { display:block; }
+          .bar span { display:block; height:100%; width:0;
+                      background:linear-gradient(90deg,var(--accent),var(--glow));
+                      box-shadow:0 0 12px rgba(28,227,206,.6); transition:width .15s; }
+
+          .meta { display:flex; justify-content:space-between; align-items:baseline;
+                  margin:40px 0 10px; }
+          .meta h2 { font-size:12px; font-weight:600; letter-spacing:.09em;
+                     text-transform:uppercase; color:var(--faint); margin:0; }
+          .meta .tot { color:var(--faint); font-size:13px; font-variant-numeric:tabular-nums; }
+
+          ul { list-style:none; margin:0; padding:0;
+               background:var(--surface); border-radius:16px; overflow:hidden; }
+          .row { display:flex; align-items:center; gap:14px; padding:13px 16px;
+                 border-bottom:1px solid rgba(255,255,255,.04); transition:background .15s; }
+          .row:last-child { border-bottom:0; }
+          .row:hover { background:rgba(255,255,255,.025); }
+          .ico { width:30px; height:30px; flex:none; border-radius:8px; background:var(--raised);
+                 display:grid; place-items:center; color:var(--accent); font-size:11px;
+                 font-weight:600; letter-spacing:.02em; }
+          .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
+                  white-space:nowrap; }
+          .size { color:var(--faint); font-size:13px; font-variant-numeric:tabular-nums;
+                  flex:none; }
+          .del { flex:none; background:none; border:0; color:#4b5563; cursor:pointer;
+                 padding:6px; border-radius:8px; display:grid; place-items:center;
+                 transition:.15s; }
+          .row:hover .del { color:var(--dim); }
+          .del:hover { color:var(--danger); background:rgba(248,113,113,.1); }
+          .empty { padding:40px 16px; text-align:center; color:var(--faint); font-size:14px; }
+
+          .toast { position:fixed; left:50%; bottom:32px; transform:translate(-50%,80px);
+                   background:var(--raised); color:var(--text); padding:11px 20px;
+                   border-radius:12px; font-size:14px; opacity:0; transition:.28s;
+                   box-shadow:0 12px 32px rgba(0,0,0,.5); }
+          .toast.show { transform:translate(-50%,0); opacity:1; }
         </style>
-        </head><body><div class="wrap">
-          <h1>AuraPlayer</h1>
-          <div class="sub">Wi-Fi transfer — keep the app open on your phone</div>
+        </head><body>
+        <div class="wrap">
+          <header>
+            <div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <h1>AuraPlayer</h1>
+          </header>
+          <p class="sub">Wi-Fi transfer · keep the app open on your phone</p>
 
-          <form id="up" class="drop" method="post" action="/upload" enctype="multipart/form-data">
-            <p>Drop audio files here, or</p>
-            <label class="pick">Choose files<input id="f" type="file" name="files" multiple></label>
-          </form>
+          <label class="drop" id="drop">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/>
+              <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+            </svg>
+            <div class="big">Drop audio files here</div>
+            <div class="small">or click to choose · MP3, FLAC, M4A, WAV, AIFF</div>
+            <input id="file" type="file" name="files" multiple accept="audio/*,.flac,.m4a,.aiff,.dsf,.dff">
+            <div class="bar" id="bar"><span id="fill"></span></div>
+          </label>
 
-          <div class="total">\(files.count) file\(files.count == 1 ? "" : "s") · \(total)</div>
-          <table>\(rows)</table>
+          <div class="meta">
+            <h2>\(files.count) file\(files.count == 1 ? "" : "s")</h2>
+            <div class="tot">\(total)</div>
+          </div>
+          <ul id="list">\(rows)\(emptyState)</ul>
         </div>
+        <div class="toast" id="toast"></div>
+
         <script>
-          const form = document.getElementById('up');
-          const input = document.getElementById('f');
-          input.addEventListener('change', () => { if (input.files.length) form.submit(); });
-          ['dragenter','dragover'].forEach(e =>
-            form.addEventListener(e, ev => { ev.preventDefault(); form.classList.add('over'); }));
-          ['dragleave','drop'].forEach(e =>
-            form.addEventListener(e, ev => { ev.preventDefault(); form.classList.remove('over'); }));
-          form.addEventListener('drop', ev => {
-            input.files = ev.dataTransfer.files;
-            if (input.files.length) form.submit();
+          const drop = document.getElementById('drop');
+          const input = document.getElementById('file');
+          const bar = document.getElementById('bar');
+          const fill = document.getElementById('fill');
+          const toast = document.getElementById('toast');
+
+          function say(text) {
+            toast.textContent = text;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2200);
+          }
+
+          function upload(files) {
+            if (!files.length) return;
+            const data = new FormData();
+            for (const f of files) data.append('files', f);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload');
+            bar.classList.add('on');
+            xhr.upload.onprogress = e => {
+              if (e.lengthComputable) fill.style.width = (e.loaded / e.total * 100) + '%';
+            };
+            xhr.onload = () => {
+              say(files.length + (files.length === 1 ? ' file added' : ' files added'));
+              setTimeout(() => location.reload(), 500);
+            };
+            xhr.onerror = () => { bar.classList.remove('on'); say('Upload failed'); };
+            xhr.send(data);
+          }
+
+          input.addEventListener('change', () => upload(input.files));
+
+          ['dragenter','dragover'].forEach(e => drop.addEventListener(e, ev => {
+            ev.preventDefault(); drop.classList.add('over');
+          }));
+          ['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => {
+            ev.preventDefault(); drop.classList.remove('over');
+          }));
+          drop.addEventListener('drop', ev => upload(ev.dataTransfer.files));
+
+          document.getElementById('list').addEventListener('click', ev => {
+            const button = ev.target.closest('.del');
+            if (!button) return;
+            const name = button.dataset.file;
+            if (!confirm('Delete ' + name + '?')) return;
+            fetch('/delete?file=' + encodeURIComponent(name), { method: 'POST' })
+              .then(() => { say('Deleted'); setTimeout(() => location.reload(), 400); });
           });
         </script>
         </body></html>
         """
+    }
+
+    /// Short badge showing the file type, e.g. FLAC.
+    private static func icon(for filename: String) -> String {
+        (filename as NSString).pathExtension.uppercased()
     }
 
     private func escape(_ text: String) -> String {
