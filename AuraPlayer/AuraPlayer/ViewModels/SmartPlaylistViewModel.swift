@@ -5,6 +5,7 @@
 
 import Foundation
 import Combine
+import SwiftUI   // remove(atOffsets:) lives here
 
 @MainActor
 final class SmartPlaylistViewModel: ObservableObject {
