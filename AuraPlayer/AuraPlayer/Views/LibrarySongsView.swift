@@ -183,52 +183,16 @@ struct LibrarySongsView: View {
     
     private var songList: some View {
         List(selection: $selection) {
-            ForEach(displayedTracks) { track in
-                TrackRow(
-                    track: track,
-                    isPlaying: player.currentTrackURL == track.url,
-                    rating: stats.rating(for: track.url),
-                    isPaused: !player.isPlaying
-                )
-                .contentShape(Rectangle())
-                // Tap-to-play only outside edit mode; in edit mode taps select.
-                .onTapGesture { if !isSelecting { play(track) } }
-                .contextMenu {
-                    Button {
-                        infoTrack = track
-                    } label: {
-                        Label("Info", systemImage: "info.circle")
-                    }
-
-                    Button {
-                        editingTrack = track
-                    } label: {
-                        Label("Edit Info", systemImage: "pencil")
-                    }
-
-                    Button {
-                        player.playNext(track)
-                    } label: {
-                        Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
-                    }
-
-                    Button {
-                        player.addToQueue(track)
-                    } label: {
-                        Label("Add to Queue", systemImage: "text.append")
-                    }
-
-                    Divider()
-
-                    Menu("Add to Playlist") {
-                        ForEach(playlists.playlists) { playlist in
-                            Button(playlist.name) {
-                                playlists.add(track: track, to: playlist)
-                            }
-                        }
-                    }
-                }
-                .listRowBackground(Color.background)
+            Section {
+                songRows
+            } footer: {
+                // Doubles as a scroll target, so the final row can never end
+                // up stranded underneath the floating mini player.
+                Text("\(displayedTracks.count) song\(displayedTracks.count == 1 ? "" : "s")")
+                    .font(.auraCaption)
+                    .foregroundStyle(Color.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, AuraSpacing.md)
             }
         }
         .listStyle(.plain)
@@ -237,7 +201,57 @@ struct LibrarySongsView: View {
         .safeAreaPadding(.bottom, AuraLayout.miniPlayerClearance)
         .refreshable { await library.scan() }
     }
-    
+
+    private var songRows: some View {
+        ForEach(displayedTracks) { track in
+            TrackRow(
+                track: track,
+                isPlaying: player.currentTrackURL == track.url,
+                rating: stats.rating(for: track.url),
+                isPaused: !player.isPlaying
+            )
+            .contentShape(Rectangle())
+            // Tap-to-play only outside edit mode; in edit mode taps select.
+            .onTapGesture { if !isSelecting { play(track) } }
+            .contextMenu {
+                Button {
+                    infoTrack = track
+                } label: {
+                    Label("Info", systemImage: "info.circle")
+                }
+
+                Button {
+                    editingTrack = track
+                } label: {
+                    Label("Edit Info", systemImage: "pencil")
+                }
+
+                Button {
+                    player.playNext(track)
+                } label: {
+                    Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
+                }
+
+                Button {
+                    player.addToQueue(track)
+                } label: {
+                    Label("Add to Queue", systemImage: "text.append")
+                }
+
+                Divider()
+
+                Menu("Add to Playlist") {
+                    ForEach(playlists.playlists) { playlist in
+                        Button(playlist.name) {
+                            playlists.add(track: track, to: playlist)
+                        }
+                    }
+                }
+            }
+            .listRowBackground(Color.background)
+        }
+    }
+
     /// Route each picked file by type: archives are unpacked, .m3u files
     /// become playlists, everything else is copied in as audio.
     private func handleImport(_ urls: [URL]) async {
