@@ -95,14 +95,17 @@ final class PlayerViewModel: ObservableObject {
     private enum Keys {
         static let repeatMode = "player.repeatMode"
         static let isShuffled = "player.isShuffled"
+        static let playbackRate = "player.playbackRate"
+        static let pitchSemitones = "player.pitchSemitones"
     }
-    
+
     init() {
         let defaults = UserDefaults.standard
         repeatMode = RepeatMode(
             rawValue: defaults.integer(forKey: Keys.repeatMode)
         ) ?? .none
         isShuffled = defaults.bool(forKey: Keys.isShuffled)
+        restoreSpeedSettings()
         setupRemoteCommands()
 
         // Sleep timer pauses playback when it fires.
@@ -141,6 +144,56 @@ final class PlayerViewModel: ObservableObject {
 
     /// Only auto-resume after an interruption if we were actually playing.
     private var wasPlayingBeforeInterruption = false
+
+    // MARK: - Speed & pitch
+
+    /// Tempo multiplier, pitch preserved. Deliberately global rather than
+    /// per-track: someone listening to a long mix at 1.25× wants it to stay
+    /// there across the whole session.
+    @Published var playbackRate: Float = 1.0 {
+        didSet {
+            guard playbackRate != oldValue else { return }
+            engine.rate = playbackRate
+            UserDefaults.standard.set(playbackRate, forKey: Keys.playbackRate)
+            // The lock screen scrubber advances at whatever rate we report,
+            // so it drifts badly if we keep claiming 1×.
+            refreshNowPlayingState()
+        }
+    }
+
+    /// Pitch shift in semitones, tempo unaffected. Useful for transposing a
+    /// backing track to a comfortable key.
+    @Published var pitchSemitones: Float = 0 {
+        didSet {
+            guard pitchSemitones != oldValue else { return }
+            engine.pitchCents = pitchSemitones * 100
+            UserDefaults.standard.set(pitchSemitones, forKey: Keys.pitchSemitones)
+        }
+    }
+
+    var isSpeedNeutral: Bool { playbackRate == 1 && pitchSemitones == 0 }
+
+    func resetSpeed() {
+        playbackRate = 1
+        pitchSemitones = 0
+    }
+
+    private func restoreSpeedSettings() {
+        let defaults = UserDefaults.standard
+
+        // float(forKey:) returns 0 for a missing key, which would mean
+        // silence — so check the key exists before trusting it.
+        let storedRate = defaults.object(forKey: Keys.playbackRate) == nil
+            ? 1.0
+            : defaults.float(forKey: Keys.playbackRate)
+        playbackRate = storedRate.clamped(to: AuraAudioEngine.rateRange)
+        pitchSemitones = defaults.float(forKey: Keys.pitchSemitones).clamped(to: -12...12)
+
+        // Push explicitly: the engine is a singleton that outlives this
+        // view model, so it may still hold settings from a previous instance.
+        engine.rate = playbackRate
+        engine.pitchCents = pitchSemitones * 100
+    }
 
     // MARK: - Loading
 
@@ -832,14 +885,14 @@ final class PlayerViewModel: ObservableObject {
             artwork: currentArtwork,
             duration: duration,
             elapsed: currentTime,
-            rate: isPlaying ? 1 : 0
+            rate: isPlaying ? Double(playbackRate) : 0
         )
     }
-    
+
     private func refreshNowPlayingState() {
         LockScreenManager.shared.updatePlaybackState(
             elapsed: currentTime,
-            rate: isPlaying ? 1 : 0
+            rate: isPlaying ? Double(playbackRate) : 0
         )
     }
 

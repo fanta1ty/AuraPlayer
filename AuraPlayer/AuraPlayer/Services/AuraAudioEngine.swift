@@ -123,6 +123,11 @@ final class AuraAudioEngine {
         engine.connect(timePitchNode, to: eqNode, format: nil)
         engine.connect(eqNode, to: engine.mainMixerNode, format: nil)
         _ = engine.outputNode
+
+        // Inert at neutral settings. Derived rather than hardcoded, because
+        // buildGraph() also runs on a route change and must not silently
+        // drop a speed the user has already chosen.
+        updateTimePitchBypass()
     }
 
     /// Flat 10-band parametric EQ, 1 octave wide per band.
@@ -186,6 +191,47 @@ final class AuraAudioEngine {
         slots[activeIndex].gainDB = db
         guard !isCrossfading else { return }
         applyVolume(slot: activeIndex, fade: 1)
+    }
+
+    // MARK: - Speed & pitch
+
+    /// Below 0.5× the time-stretcher smears transients badly; above 3× the
+    /// output stops being useful. AVAudioUnitTimePitch itself allows 1/32…32.
+    static let rateRange: ClosedRange<Float> = 0.5...3.0
+    /// ±1 octave, expressed in cents (100 cents = 1 semitone).
+    static let pitchRange: ClosedRange<Float> = -1200...1200
+
+    /// Tempo multiplier. Pitch is held constant automatically.
+    var rate: Float {
+        get { timePitchNode.rate }
+        set {
+            timePitchNode.rate = newValue.clamped(to: Self.rateRange)
+            updateTimePitchBypass()
+        }
+    }
+
+    /// Pitch shift in cents, tempo unaffected.
+    var pitchCents: Float {
+        get { timePitchNode.pitch }
+        set {
+            timePitchNode.pitch = newValue.clamped(to: Self.pitchRange)
+            updateTimePitchBypass()
+        }
+    }
+
+    var isSpeedNeutral: Bool { timePitchNode.rate == 1 && timePitchNode.pitch == 0 }
+
+    func resetSpeed() {
+        timePitchNode.rate = 1
+        timePitchNode.pitch = 0
+        updateTimePitchBypass()
+    }
+
+    /// Time-stretching is by far the most expensive stage in the graph, and
+    /// it also adds latency. At neutral settings it would be doing all that
+    /// work to output its input, so bypass it entirely.
+    private func updateTimePitchBypass() {
+        timePitchNode.bypass = isSpeedNeutral
     }
 
     // MARK: - Playback
@@ -470,5 +516,11 @@ final class AuraAudioEngine {
         let wasRunning = engine.isRunning
         buildGraph()
         if wasRunning { start() }
+    }
+}
+
+extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

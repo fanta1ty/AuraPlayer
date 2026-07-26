@@ -25,6 +25,7 @@ struct NowPlayingView: View {
     @State private var showEQ = false
     @State private var showSleepTimer = false
     @State private var showLyrics = false
+    @State private var showSpeed = false
     
     var body: some View {
         ZStack {
@@ -95,6 +96,11 @@ struct NowPlayingView: View {
         }
         .sheet(isPresented: $showSleepTimer) {
             SleepTimerView()
+        }
+        .sheet(isPresented: $showSpeed) {
+            SpeedControlView()
+                .environmentObject(player)
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showLyrics) {
             LyricsView()
@@ -248,6 +254,29 @@ struct NowPlayingView: View {
                     .monospacedDigit()
 
                 Spacer()
+
+                // Speed lives beside the A-B loop: both bend how the track
+                // plays, and both belong next to the clock they affect.
+                Button {
+                    showSpeed = true
+                } label: {
+                    Text(SpeedControlView.rateLabel(player.playbackRate))
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(player.isSpeedNeutral ? Color.textTertiary : Color.accent)
+                        .contentTransition(.numericText())
+                        .padding(.horizontal, AuraSpacing.sm)
+                        .padding(.vertical, 3)
+                        .overlay(
+                            Capsule().stroke(
+                                player.isSpeedNeutral ? Color.textDisabled : Color.accent,
+                                lineWidth: 1
+                            )
+                        )
+                }
+                .buttonStyle(ScaleButtonStyle())
+                .animation(.snappy(duration: 0.25), value: player.playbackRate)
+                .accessibilityLabel("Playback speed")
+                .accessibilityValue(SpeedControlView.rateLabel(player.playbackRate))
 
                 Button {
                     player.cycleLoopPoint()
