@@ -33,13 +33,13 @@ struct AuraNowPlayingBar: View {
             Button {
                 player.togglePlayPause()
             } label: {
-                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.auraHeadline)
-                    .foregroundStyle(Color.textPrimary)
+                AuraPlayPauseIcon(isPlaying: player.isPlaying, size: 17)
                     .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(ScaleButtonStyle())
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
-            
+
             Button {
                 player.skipNext()
             } label: {
@@ -47,7 +47,9 @@ struct AuraNowPlayingBar: View {
                     .font(.auraHeadline)
                     .foregroundStyle(Color.textPrimary)
                     .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(ScaleButtonStyle())
             .accessibilityLabel("Next track")
         }
         .padding(.horizontal, AuraSpacing.md)
@@ -55,10 +57,14 @@ struct AuraNowPlayingBar: View {
         .background(.ultraThinMaterial)
         .background(Color.surface.opacity(0.6))
         .clipShape(RoundedRectangle(cornerRadius: AuraRadius.medium))
+        .overlay(alignment: .bottom) { progressLine }
         .overlay(
             RoundedRectangle(cornerRadius: AuraRadius.medium)
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
+        .clipShape(RoundedRectangle(cornerRadius: AuraRadius.medium))
+        // A light tap confirms the toggle without looking at the screen.
+        .sensoryFeedback(.impact(weight: .light), trigger: player.isPlaying)
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
         // Keep the buttons individually reachable, but give the bar itself a
@@ -68,22 +74,33 @@ struct AuraNowPlayingBar: View {
         .accessibilityHint("Opens the full player")
     }
     
+    /// Hairline of elapsed progress along the bottom edge — glanceable
+    /// without adding a control the thumb could hit by accident.
+    private var progressLine: some View {
+        GeometryReader { geo in
+            Capsule()
+                .fill(Color.accent)
+                .frame(width: max(0, geo.size.width * player.progress), height: 2)
+                .animation(.linear(duration: 0.25), value: player.progress)
+        }
+        .frame(height: 2)
+        .allowsHitTesting(false)
+    }
+
     @ViewBuilder private var artwork: some View {
         Group {
             if let art = player.currentArtwork {
                 Image(uiImage: art)
                     .resizable()
                     .scaledToFill()
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: AuraRadius.small))
             } else {
-                Color.surfaceElevated
-                    .overlay(
-                        Image(systemName: "music.note")
-                            .foregroundStyle(Color.accent)
-                    )
+                // No cover art: spin a record instead of showing a dead note.
+                AuraVinylView(size: 44, isSpinning: player.isPlaying)
             }
         }
         .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: AuraRadius.small))
     }
 }
 

@@ -53,8 +53,11 @@ struct NowPlayingView: View {
                     Image(systemName: "quote.bubble")
                         .font(.auraTitle)
                         .foregroundStyle(player.lyrics.isEmpty ? Color.textSecondary : Color.textPrimary)
+                        // Nudges when lyrics arrive, so you notice they're there.
+                        .symbolEffect(.bounce, value: player.lyrics.isEmpty)
                 }
                 .buttonStyle(ScaleButtonStyle())
+                .accessibilityLabel("Lyrics")
 
                 Button {
                     showSleepTimer = true
@@ -68,11 +71,13 @@ struct NowPlayingView: View {
                 Button {
                     showEQ = true
                 } label: {
-                    Image(systemName: "slider.vertical.3")
-                        .font(.auraTitle)
-                        .foregroundStyle(Color.textPrimary)
+                    // Custom faders — reads as the screen it opens.
+                    AuraEqualizerGlyph(size: 22, color: .textPrimary)
+                        .frame(width: 26, height: 26)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(ScaleButtonStyle())
+                .accessibilityLabel("Equalizer")
 
                 Button {
                     showQueue = true
@@ -236,7 +241,11 @@ struct NowPlayingView: View {
             }
             .frame(height: 48)
             HStack {
+                // Digits roll over instead of hard-cutting each second.
                 Text(Self.time(player.currentTime))
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.2), value: Int(player.currentTime))
+                    .monospacedDigit()
 
                 Spacer()
 
@@ -275,8 +284,10 @@ struct NowPlayingView: View {
             } label: {
                 Image(systemName: "shuffle")
                     .foregroundStyle(player.isShuffled ? Color.accent : Color.textSecondary)
+                    .symbolEffect(.bounce, value: player.isShuffled)
             }
             .buttonStyle(ScaleButtonStyle())
+            .sensoryFeedback(.selection, trigger: player.isShuffled)
             .accessibilityLabel("Shuffle")
             .accessibilityValue(player.isShuffled ? "On" : "Off")
 
@@ -301,13 +312,14 @@ struct NowPlayingView: View {
                     .fill(Color.accent)
                     .frame(width: 72, height: 72)
                     .overlay(
-                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 28))
-                            .foregroundStyle(Color.background)
+                        AuraPlayPauseIcon(isPlaying: player.isPlaying,
+                                          size: 26,
+                                          color: .background)
                     )
                     .glowEffect()
             }
             .buttonStyle(ScaleButtonStyle())
+            .sensoryFeedback(.impact(weight: .medium), trigger: player.isPlaying)
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
 
             Spacer()
@@ -328,8 +340,11 @@ struct NowPlayingView: View {
             } label: {
                 Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
                     .foregroundStyle(player.repeatMode == .none ? Color.textSecondary : Color.accent)
+                    .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, value: player.repeatMode)
             }
             .buttonStyle(ScaleButtonStyle())
+            .sensoryFeedback(.selection, trigger: player.repeatMode)
             .accessibilityLabel("Repeat")
             .accessibilityValue(repeatDescription)
         }

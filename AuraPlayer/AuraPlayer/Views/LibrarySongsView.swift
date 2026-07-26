@@ -71,8 +71,10 @@ struct LibrarySongsView: View {
         NavigationStack {
             Group {
                 if library.isScanning && library.tracks.isEmpty {
-                    ProgressView().tint(Color.accent)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Skeleton rows read as "songs are coming" — a bare
+                    // spinner just reads as "wait".
+                    AuraSkeletonList(count: 9)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .background(Color.background)
                 } else if displayedTracks.isEmpty {
                     emptyState
@@ -277,8 +279,10 @@ struct LibrarySongsView: View {
         ZStack {
             AuraBackground(intensity: 0.8)
 
+            // Each element rises in just behind the one above it.
             VStack(spacing: AuraSpacing.lg) {
                 AuraLogoMark(size: 84, isAnimating: true)
+                    .auraAppear(index: 0, step: 0.12)
 
                 VStack(spacing: AuraSpacing.sm) {
                     Text("No songs yet")
@@ -290,12 +294,14 @@ struct LibrarySongsView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, AuraSpacing.xl)
                 }
+                .auraAppear(index: 1, step: 0.12)
 
                 AuraButton("Import Music", systemImage: "square.and.arrow.down", variant: .primary) {
                     showImporter = true
                 }
                 .padding(.horizontal, AuraSpacing.xxl)
                 .padding(.top, AuraSpacing.sm)
+                .auraAppear(index: 2, step: 0.12)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
