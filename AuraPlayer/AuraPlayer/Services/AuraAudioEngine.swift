@@ -182,6 +182,40 @@ final class AuraAudioEngine {
 
     // MARK: - Playback
 
+    /// Load a track and hold it paused at `startAt`. Used when restoring a
+    /// saved session — the user should reopen to a paused player, not to
+    /// audio suddenly starting.
+    @discardableResult
+    func prepare(url: URL, startAt seconds: TimeInterval = 0, gainDB: Float = 0) -> Bool {
+        cancelCrossfade()
+
+        guard let file = try? AVAudioFile(forReading: url) else { return false }
+        let index = activeIndex
+
+        slots[index].file = file
+        slots[index].sampleRate = file.processingFormat.sampleRate
+        slots[index].lengthSamples = file.length
+        slots[index].seekFrame = 0
+        slots[index].gainDB = gainDB
+
+        players[inactiveIndex].stop()
+        mixers[inactiveIndex].outputVolume = 0
+        applyVolume(slot: index, fade: 1)
+
+        wire(slot: index, format: file.processingFormat)
+        start()
+
+        let frame = AVAudioFramePosition(max(0, seconds) * slots[index].sampleRate)
+        if frame > 0, frame < slots[index].lengthSamples {
+            slots[index].seekFrame = frame
+            schedule(file: file, slot: index, startingFrame: frame)
+        } else {
+            schedule(file: file, slot: index, startingFrame: nil)
+        }
+        // Deliberately not calling play() — the node stays primed and silent.
+        return true
+    }
+
     /// Load and play immediately on the active slot (hard switch).
     func play(url: URL, gainDB: Float = 0) {
         cancelCrossfade()

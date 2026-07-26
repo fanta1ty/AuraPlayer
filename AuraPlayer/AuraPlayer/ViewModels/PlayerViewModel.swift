@@ -184,6 +184,87 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Session restore
+
+    /// Snapshot the queue so the app can reopen where it left off.
+    func saveSession() {
+        guard !queue.isEmpty, !order.isEmpty else {
+            PlaybackSessionStore.clear()
+            return
+        }
+        PlaybackSessionStore.save(
+            PlaybackSession(
+                queueFilenames: queue.map(\.lastPathComponent),
+                order: order,
+                position: position,
+                elapsed: currentTime,
+                isShuffled: isShuffled,
+                repeatModeRaw: repeatMode.rawValue,
+                savedAt: .now
+            )
+        )
+    }
+
+    /// Rebuild the last session from the scanned library. Leaves playback
+    /// paused at the saved position — reopening an app shouldn't blast audio.
+    func restoreSession(from tracks: [Track]) {
+        guard queue.isEmpty,                     // don't clobber an active queue
+              let session = PlaybackSessionStore.load()
+        else { return }
+
+        // Resolve filenames against the library; files may have been deleted.
+        let byName = Dictionary(tracks.map { ($0.url.lastPathComponent, $0) },
+                                uniquingKeysWith: { a, _ in a })
+
+        var resolved: [Track] = []
+        var oldToNew: [Int: Int] = [:]           // old queue index -> new index
+        for (oldIndex, name) in session.queueFilenames.enumerated() {
+            guard let track = byName[name] else { continue }
+            oldToNew[oldIndex] = resolved.count
+            resolved.append(track)
+        }
+        guard !resolved.isEmpty else {
+            PlaybackSessionStore.clear()
+            return
+        }
+
+        // Remap the play order, dropping anything that no longer exists.
+        let newOrder = session.order.compactMap { oldToNew[$0] }
+        guard !newOrder.isEmpty else {
+            PlaybackSessionStore.clear()
+            return
+        }
+
+        trackIndex = Dictionary(resolved.map { ($0.url, $0) }, uniquingKeysWith: { a, _ in a })
+        queue = resolved.map(\.url)
+        order = newOrder
+        // The saved track may have been removed — fall back to the start.
+        position = min(session.position, newOrder.count - 1)
+        isShuffled = session.isShuffled
+        repeatMode = session.repeatMode
+
+        guard let url = currentTrackURL else { return }
+
+        let resumeAt = session.elapsed
+        guard engine.prepare(url: url, startAt: resumeAt) else { return }
+
+        duration = engine.duration
+        currentTime = resumeAt
+        progress = duration > 0 ? resumeAt / duration : 0
+        isPlaying = false
+        hasTrack = true
+        countedThisPlay = resumeAt >= playCountThreshold
+
+        engine.onTrackFinished = { [weak self] in self?.handleTrackFinished() }
+
+        updateMetadata(for: url)
+        publishNowPlaying()
+        loadWaveform(for: url)
+        applyNormalization(for: url)
+        loadLyrics(for: url)
+        startTicking()          // keeps the lock screen and UI in sync
+    }
+
     // MARK: - Lyrics
 
     @Published private(set) var lyrics = Lyrics(lines: [])
@@ -388,6 +469,7 @@ final class PlayerViewModel: ObservableObject {
         engine.isPlaying ? engine.pause() : engine.resume()
         isPlaying = engine.isPlaying
         refreshNowPlayingState()
+        saveSession()
     }
 
     func stop() {
@@ -407,6 +489,7 @@ final class PlayerViewModel: ObservableObject {
         clearLoop()
         stopTicking()
         LockScreenManager.shared.clear()
+        PlaybackSessionStore.clear()
     }
 
     /// Called by the UI while scrubbing the slider (progress is 0...1).
@@ -612,6 +695,7 @@ final class PlayerViewModel: ObservableObject {
             self.tickCount += 1
             if self.tickCount % 50 == 0 {      // 0.1s × 50 = every 5s
                 self.refreshNowPlayingState()
+                self.saveSession()             // survive a crash or force-quit
             }
         }
     }

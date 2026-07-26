@@ -14,6 +14,7 @@ struct ContentView: View {
     @EnvironmentObject var eq: EQEngine
     
     @State private var showPlayer = false
+    @Environment(\.scenePhase) private var scenePhase
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -63,6 +64,15 @@ struct ContentView: View {
             
             if library.tracks.isEmpty {
                 await library.scan()
+            }
+
+            // Reopen where the user left off (paused, at the saved position).
+            player.restoreSession(from: library.tracks)
+        }
+        // Capture the position when leaving the app, not just on the 5s tick.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .inactive || phase == .background {
+                player.saveSession()
             }
         }
         .sheet(isPresented: $showPlayer) {
