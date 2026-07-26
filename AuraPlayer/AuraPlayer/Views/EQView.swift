@@ -100,15 +100,21 @@ struct EQView: View {
                     .font(.auraTimestamp)
                     .foregroundStyle(eq.preamp == 0 ? Color.textTertiary : Color.accent)
             }
-            AuraSlider(value: Binding(
-                get: {
-                    Double((eq.preamp - EQEngine.minGain) / (EQEngine.maxGain - EQEngine.minGain))
-                },
-                set: { newValue in
-                    let range = EQEngine.maxGain - EQEngine.minGain
-                    eq.setPreamp(EQEngine.minGain + Float(newValue) * range)
+            AuraSlider(
+                value: Binding(
+                    get: {
+                        Double((eq.preamp - EQEngine.minGain) / (EQEngine.maxGain - EQEngine.minGain))
+                    },
+                    set: { newValue in
+                        let range = EQEngine.maxGain - EQEngine.minGain
+                        eq.setPreamp(EQEngine.minGain + Float(newValue) * range)
+                    }
+                ),
+                accessibilityTitle: "Preamp",
+                accessibilityValueText: { _ in
+                    String(format: "%+.1f decibels", eq.preamp)
                 }
-            ))
+            )
         }
         .padding(.horizontal, AuraSpacing.md)
     }

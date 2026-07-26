@@ -214,6 +214,14 @@ struct NowPlayingView: View {
         return (start / player.duration)...(end / player.duration)
     }
 
+    private var repeatDescription: String {
+        switch player.repeatMode {
+        case .none: return "Off"
+        case .one:  return "Repeat one track"
+        case .all:  return "Repeat all"
+        }
+    }
+
     /// Cycles A → B → off.
     private var loopButtonLabel: String {
         if player.loopStart == nil { return "A-B" }
@@ -226,7 +234,8 @@ struct NowPlayingView: View {
             WaveformView(
                 samples: player.waveform,
                 progress: player.progress,
-                loopRange: loopRange
+                loopRange: loopRange,
+                duration: player.duration
             ) { newProgress in
                 player.seek(toProgress: newProgress)
             }
@@ -273,9 +282,11 @@ struct NowPlayingView: View {
                     .foregroundStyle(player.isShuffled ? Color.accent : Color.textSecondary)
             }
             .buttonStyle(ScaleButtonStyle())
-            
+            .accessibilityLabel("Shuffle")
+            .accessibilityValue(player.isShuffled ? "On" : "Off")
+
             Spacer()
-            
+
             Button {
                 player.skipPrevious()
             } label: {
@@ -283,6 +294,7 @@ struct NowPlayingView: View {
                     .foregroundStyle(Color.textPrimary)
             }
             .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel("Previous track")
                 
             Spacer()
             
@@ -301,9 +313,10 @@ struct NowPlayingView: View {
                     .glowEffect()
             }
             .buttonStyle(ScaleButtonStyle())
-            
+            .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
+
             Spacer()
-            
+
             Button {
                 player.skipNext()
             } label: {
@@ -311,9 +324,10 @@ struct NowPlayingView: View {
                     .foregroundStyle(Color.textPrimary)
             }
             .buttonStyle(ScaleButtonStyle())
-            
+            .accessibilityLabel("Next track")
+
             Spacer()
-            
+
             Button {
                 player.cycleRepeatMode()
             } label: {
@@ -321,6 +335,8 @@ struct NowPlayingView: View {
                     .foregroundStyle(player.repeatMode == .none ? Color.textSecondary : Color.accent)
             }
             .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel("Repeat")
+            .accessibilityValue(repeatDescription)
         }
         .font(.auraTitle)
     }

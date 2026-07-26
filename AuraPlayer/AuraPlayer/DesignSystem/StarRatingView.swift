@@ -28,6 +28,18 @@ struct StarRatingView: View {
                         guard interactive else { return }
                         onChange?(star == rating ? 0 : star)
                     }
+                    .accessibilityHidden(true)   // the group speaks for them
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Rating")
+        .accessibilityValue(rating == 0 ? "Not rated" : "\(rating) of 5 stars")
+        .accessibilityAdjustableAction { direction in
+            guard interactive else { return }
+            switch direction {
+            case .increment: onChange?(min(5, rating + 1))
+            case .decrement: onChange?(max(0, rating - 1))
+            @unknown default: break
             }
         }
     }

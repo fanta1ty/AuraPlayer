@@ -42,6 +42,26 @@ struct TrackRow: View {
                 .foregroundStyle(Color.textTertiary)
         }
         .padding(.vertical, AuraSpacing.xs)
+        // Read as one sentence instead of four separate fragments.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spokenLabel)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var spokenLabel: String {
+        var parts = [track.title, "by \(track.artist)"]
+        if isPlaying { parts.insert("Now playing", at: 0) }
+        if rating > 0 { parts.append("rated \(rating) of 5") }
+        parts.append(Self.spokenDuration(track.duration))
+        return parts.joined(separator: ", ")
+    }
+
+    private static func spokenDuration(_ time: TimeInterval) -> String {
+        let total = Int(time)
+        let minutes = total / 60
+        let seconds = total % 60
+        if minutes == 0 { return "\(seconds) seconds" }
+        return "\(minutes) minute\(minutes == 1 ? "" : "s") \(seconds) second\(seconds == 1 ? "" : "s")"
     }
     
     @ViewBuilder private var artwork: some View {

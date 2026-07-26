@@ -106,5 +106,10 @@ struct AlbumCard: View {
                 .foregroundStyle(Color.textTertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(album.title), by \(album.artist), \(album.trackCount) track\(album.trackCount == 1 ? "" : "s")"
+        )
+        .accessibilityAddTraits(.isButton)
     }
 }

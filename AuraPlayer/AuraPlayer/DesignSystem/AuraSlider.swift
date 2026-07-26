@@ -11,6 +11,12 @@ import SwiftUI
 
 struct AuraSlider: View {
     @Binding var value: Double          // 0...1
+    /// Spoken by VoiceOver, e.g. "Preamp" or "Seek".
+    var accessibilityTitle: String = "Slider"
+    /// Formats `value` for VoiceOver. Defaults to a percentage.
+    var accessibilityValueText: ((Double) -> String)?
+    /// How much one VoiceOver swipe moves the value.
+    var accessibilityStep: Double = 0.05
     var trackHeight: CGFloat = 6
     var thumbSize: CGFloat = 18
 
@@ -55,6 +61,24 @@ struct AuraSlider: View {
             )
         }
         .frame(height: max(thumbSize, trackHeight))
+        // The slider is drawn shapes, so VoiceOver needs to be told it's a
+        // slider and given a readable value it can adjust.
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityTitle)
+        .accessibilityValue(valueDescription)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: value = min(1, value + accessibilityStep)
+            case .decrement: value = max(0, value - accessibilityStep)
+            @unknown default: break
+            }
+        }
+    }
+
+    private var valueDescription: String {
+        if let accessibilityValueText { return accessibilityValueText(value) }
+        return "\(Int(value * 100)) percent"
     }
 }
 

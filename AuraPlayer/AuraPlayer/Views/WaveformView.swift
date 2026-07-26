@@ -12,6 +12,8 @@ struct WaveformView: View {
     let samples: [Float]
     let progress: Double          // 0...1
     var loopRange: ClosedRange<Double>? = nil   // 0...1 fractions of the track
+    /// Total track length, so VoiceOver can announce a real time position.
+    var duration: TimeInterval = 0
     var onScrub: (Double) -> Void
 
     var body: some View {
@@ -66,5 +68,34 @@ struct WaveformView: View {
                     }
             )
         }
+        // Acts as the seek control, so expose it as an adjustable slider
+        // that announces elapsed time rather than a percentage.
+        .accessibilityElement()
+        .accessibilityLabel("Playback position")
+        .accessibilityValue(positionDescription)
+        .accessibilityHint("Swipe up or down to scrub")
+        .accessibilityAdjustableAction { direction in
+            // Step by 5 seconds, or 5% when the duration isn't known yet.
+            let step = duration > 0 ? 5 / duration : 0.05
+            switch direction {
+            case .increment: onScrub(min(1, progress + step))
+            case .decrement: onScrub(max(0, progress - step))
+            @unknown default: break
+            }
+        }
+    }
+
+    private var positionDescription: String {
+        guard duration > 0 else { return "\(Int(progress * 100)) percent" }
+        let elapsed = Int(progress * duration)
+        let total = Int(duration)
+        return "\(spoken(elapsed)) of \(spoken(total))"
+    }
+
+    private func spoken(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        let secs = seconds % 60
+        if minutes == 0 { return "\(secs) seconds" }
+        return "\(minutes) minute\(minutes == 1 ? "" : "s") \(secs) second\(secs == 1 ? "" : "s")"
     }
 }

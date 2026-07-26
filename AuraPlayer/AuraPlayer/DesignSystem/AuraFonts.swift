@@ -17,18 +17,21 @@ enum Aura {
 
 extension Font {
 
-    /// Large now-playing track title / hero text.
-    static let auraDisplay  = Font.system(size: 34, weight: .bold,     design: Aura.fontDesign)
-    /// Screen titles, section headers.
-    static let auraTitle    = Font.system(size: 24, weight: .semibold, design: Aura.fontDesign)
-    /// Track titles in lists, prominent labels.
-    static let auraHeadline = Font.system(size: 18, weight: .semibold, design: Aura.fontDesign)
-    /// Default body text, artist names.
-    static let auraBody     = Font.system(size: 16, weight: .regular,  design: Aura.fontDesign)
-    /// Metadata, secondary labels.
-    static let auraCaption  = Font.system(size: 13, weight: .regular,  design: Aura.fontDesign)
+    // Built on text styles rather than fixed point sizes, so every label
+    // scales with the reader's Dynamic Type setting.
+
+    /// Large now-playing track title / hero text. (~34pt at default size)
+    static let auraDisplay  = Font.system(.largeTitle, design: Aura.fontDesign).weight(.bold)
+    /// Screen titles, section headers. (~22pt)
+    static let auraTitle    = Font.system(.title2, design: Aura.fontDesign).weight(.semibold)
+    /// Track titles in lists, prominent labels. (~17pt)
+    static let auraHeadline = Font.system(.headline, design: Aura.fontDesign)
+    /// Default body text, artist names. (~16pt)
+    static let auraBody     = Font.system(.callout, design: Aura.fontDesign)
+    /// Metadata, secondary labels. (~13pt)
+    static let auraCaption  = Font.system(.footnote, design: Aura.fontDesign)
     /// Time display (00:00). Monospaced digits so width never shifts.
-    static let auraTimestamp = Font.system(size: 13, weight: .medium, design: .monospaced)
+    static let auraTimestamp = Font.system(.footnote, design: .monospaced).weight(.medium)
 }
 
 // MARK: - Preview

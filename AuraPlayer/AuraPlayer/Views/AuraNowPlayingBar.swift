@@ -38,6 +38,7 @@ struct AuraNowPlayingBar: View {
                     .foregroundStyle(Color.textPrimary)
                     .frame(width: 32, height: 32)
             }
+            .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
             
             Button {
                 player.skipNext()
@@ -47,6 +48,7 @@ struct AuraNowPlayingBar: View {
                     .foregroundStyle(Color.textPrimary)
                     .frame(width: 32, height: 32)
             }
+            .accessibilityLabel("Next track")
         }
         .padding(.horizontal, AuraSpacing.md)
         .padding(.vertical, AuraSpacing.sm)
@@ -59,6 +61,11 @@ struct AuraNowPlayingBar: View {
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
+        // Keep the buttons individually reachable, but give the bar itself a
+        // clear identity so VoiceOver users know what it is.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Now playing: \(player.currentTitle), \(player.currentArtist)")
+        .accessibilityHint("Opens the full player")
     }
     
     @ViewBuilder private var artwork: some View {

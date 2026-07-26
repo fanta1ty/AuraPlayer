@@ -46,6 +46,8 @@ struct SpectrumView: View {
                 }
             }
             .animation(.linear(duration: 0.05), value: levels)
+            // Purely decorative — announcing 32 changing numbers would be noise.
+            .accessibilityHidden(true)
 
             Button {
                 withAnimation(.easeInOut(duration: 0.25)) {
@@ -58,6 +60,9 @@ struct SpectrumView: View {
                     .padding(6)
             }
             .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel("Spectrum style")
+            .accessibilityValue(mode.rawValue.capitalized)
+            .accessibilityHint("Switches between bars, line and mirror")
         }
     }
 

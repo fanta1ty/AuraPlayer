@@ -61,5 +61,29 @@ struct EQBandSlider: View {
                 .font(.system(size: 9))
                 .foregroundStyle(Color.textSecondary)
         }
+        // One accessibility element per band: "1 kilohertz, plus 3 decibels".
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(frequencyDescription)
+        .accessibilityValue(gainDescription)
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: onChange(min(maxGain, band.gain + 1))
+            case .decrement: onChange(max(minGain, band.gain - 1))
+            @unknown default: break
+            }
+        }
+    }
+
+    /// "32 hertz" / "1 kilohertz" — spelled out so VoiceOver doesn't read "k".
+    private var frequencyDescription: String {
+        band.frequency >= 1000
+            ? "\(Int(band.frequency / 1000)) kilohertz"
+            : "\(Int(band.frequency)) hertz"
+    }
+
+    private var gainDescription: String {
+        band.gain == 0
+            ? "0 decibels"
+            : String(format: "%+.0f decibels", band.gain)
     }
 }
