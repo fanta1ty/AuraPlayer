@@ -13,6 +13,9 @@ struct LibraryArtistsView: View {
     @EnvironmentObject var player: PlayerViewModel
     @EnvironmentObject var library: LibraryViewModel
     @EnvironmentObject var stats: TrackStatsViewModel
+
+    @State private var showComposers = false
+    @State private var showFolders = false
     
     private var artists: [Artist] {
         // Group by album artist so a compilation lists under its credited
@@ -84,22 +87,33 @@ struct LibraryArtistsView: View {
             .navigationTitle("Artists")
             // Composer and folder browsing live here rather than as their own
             // tabs — five tabs is already the limit before iOS adds "More".
+            // NavigationLink inside a Menu doesn't reliably register taps, so
+            // the menu items set state and navigation is driven from here.
+            .navigationDestination(isPresented: $showComposers) {
+                LibraryComposersView()
+            }
+            .navigationDestination(isPresented: $showFolders) {
+                LibraryFoldersView()
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        NavigationLink {
-                            LibraryComposersView()
+                        Button {
+                            showComposers = true
                         } label: {
                             Label("Composers", systemImage: "music.quarternote.3")
                         }
-                        NavigationLink {
-                            LibraryFoldersView()
+                        Button {
+                            showFolders = true
                         } label: {
                             Label("Folders", systemImage: "folder")
                         }
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.auraTitle)
                             .foregroundStyle(Color.accent)
+                            .frame(width: 44, height: 44)   // full-size tap target
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Browse by")
                 }
