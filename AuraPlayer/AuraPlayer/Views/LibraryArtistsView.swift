@@ -12,6 +12,7 @@ import SwiftUI
 struct LibraryArtistsView: View {
     @EnvironmentObject var player: PlayerViewModel
     @EnvironmentObject var library: LibraryViewModel
+    @EnvironmentObject var stats: TrackStatsViewModel
     
     private var artists: [Artist] {
         // Group by album artist so a compilation lists under its credited
@@ -81,6 +82,28 @@ struct LibraryArtistsView: View {
             }
             .background(Color.background)
             .navigationTitle("Artists")
+            // Composer and folder browsing live here rather than as their own
+            // tabs — five tabs is already the limit before iOS adds "More".
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        NavigationLink {
+                            LibraryComposersView()
+                        } label: {
+                            Label("Composers", systemImage: "music.quarternote.3")
+                        }
+                        NavigationLink {
+                            LibraryFoldersView()
+                        } label: {
+                            Label("Folders", systemImage: "folder")
+                        }
+                    } label: {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .foregroundStyle(Color.accent)
+                    }
+                    .accessibilityLabel("Browse by")
+                }
+            }
         }
         .preferredColorScheme(.dark)
     }

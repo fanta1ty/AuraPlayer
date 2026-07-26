@@ -19,7 +19,6 @@ enum EQCurve {
     static let minFreq: Double = 20
     static let maxFreq: Double = 20_000
     private static let sampleRate: Double = 44_100
-    private static let bandwidthOctaves: Double = 1.0   // matches AuraAudioEngine
 
     /// Combined response (preamp + all bands) at `count` log-spaced frequencies.
     static func response(bands: [EQBand], preamp: Float, count: Int = 120) -> [Point] {
@@ -34,17 +33,21 @@ enum EQCurve {
             for band in bands where band.isEnabled && band.gain != 0 {
                 dB += peakingGainDB(at: f,
                                     centerFreq: Double(band.frequency),
-                                    gainDB: Double(band.gain))
+                                    gainDB: Double(band.gain),
+                                    bandwidth: Double(band.bandwidth))
             }
             return Point(id: i, frequency: f, gain: dB)
         }
     }
 
     /// Magnitude (dB) of an RBJ peaking-EQ biquad at frequency `f`.
-    private static func peakingGainDB(at f: Double, centerFreq f0: Double, gainDB: Double) -> Double {
+    private static func peakingGainDB(at f: Double,
+                                      centerFreq f0: Double,
+                                      gainDB: Double,
+                                      bandwidth: Double) -> Double {
         let A = pow(10, gainDB / 40)
         let w0 = 2 * .pi * f0 / sampleRate
-        let bw = bandwidthOctaves
+        let bw = max(0.05, bandwidth)
         let Q = sqrt(pow(2, bw)) / (pow(2, bw) - 1)
         let alpha = sin(w0) / (2 * Q)
 

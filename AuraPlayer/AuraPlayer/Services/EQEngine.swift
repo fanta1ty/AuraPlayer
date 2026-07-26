@@ -14,6 +14,8 @@ struct EQBand: Identifiable, Hashable {
     let id: Int             // band index (0...9)
     let frequency: Float    // Hz
     var gain: Float         // dB
+    /// Filter width in octaves — smaller is narrower/more surgical.
+    var bandwidth: Float = 1.0
     var isEnabled: Bool
 
     /// Short display label: "32", "1k", "16k".
@@ -29,6 +31,9 @@ final class EQEngine: ObservableObject {
 
     static let minGain: Float = -12
     static let maxGain: Float = 12
+    /// AVAudioUnitEQ accepts 0.05...5.0 octaves; keep to a musically useful range.
+    static let minBandwidth: Float = 0.2
+    static let maxBandwidth: Float = 3.0
 
     @Published private(set) var bands: [EQBand] = []
     @Published private(set) var customPresets: [EQPreset] = []
@@ -50,6 +55,7 @@ final class EQEngine: ObservableObject {
             EQBand(id: index,
                    frequency: band.frequency,
                    gain: band.gain,
+                   bandwidth: band.bandwidth,
                    isEnabled: !band.bypass)
         }
         customPresets = EQPresetStore.load()
@@ -74,6 +80,17 @@ final class EQEngine: ObservableObject {
         let clamped = min(max(value, Self.minGain), Self.maxGain)
         preamp = clamped
         eqNode.globalGain = clamped
+        persistSettings()
+    }
+
+    /// Set one band's width in octaves. Narrow bands cut/boost a tighter
+    /// range — useful for notching out a resonance rather than shaping tone.
+    func setBand(_ index: Int, bandwidth: Float) {
+        guard bands.indices.contains(index) else { return }
+        let clamped = min(max(bandwidth, Self.minBandwidth), Self.maxBandwidth)
+        eqNode.bands[index].bandwidth = clamped
+        bands[index].bandwidth = clamped
+        selectedPresetID = nil
         persistSettings()
     }
 
@@ -131,7 +148,8 @@ final class EQEngine: ObservableObject {
     // MARK: - Persistence
 
     private enum Keys {
-        static let gains    = "eq.gains"
+        static let gains      = "eq.gains"
+        static let bandwidths = "eq.bandwidths"
         static let preamp   = "eq.preamp"
         static let enabled  = "eq.enabled"
         static let selected = "eq.selectedPreset"
@@ -141,6 +159,9 @@ final class EQEngine: ObservableObject {
         let defaults = UserDefaults.standard
         if let data = try? JSONEncoder().encode(gains) {
             defaults.set(data, forKey: Keys.gains)
+        }
+        if let data = try? JSONEncoder().encode(bands.map(\.bandwidth)) {
+            defaults.set(data, forKey: Keys.bandwidths)
         }
         defaults.set(preamp, forKey: Keys.preamp)
         defaults.set(isEnabled, forKey: Keys.enabled)
@@ -156,6 +177,15 @@ final class EQEngine: ObservableObject {
                 let clamped = min(max(gain, Self.minGain), Self.maxGain)
                 eqNode.bands[index].gain = clamped
                 bands[index].gain = clamped
+            }
+        }
+
+        if let data = defaults.data(forKey: Keys.bandwidths),
+           let saved = try? JSONDecoder().decode([Float].self, from: data) {
+            for (index, width) in saved.enumerated() where bands.indices.contains(index) {
+                let clamped = min(max(width, Self.minBandwidth), Self.maxBandwidth)
+                eqNode.bands[index].bandwidth = clamped
+                bands[index].bandwidth = clamped
             }
         }
 

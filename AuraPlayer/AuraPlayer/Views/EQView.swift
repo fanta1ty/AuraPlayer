@@ -15,6 +15,8 @@ struct EQView: View {
 
     @State private var showSave = false
     @State private var newName = ""
+    /// Band whose width is being edited, if any.
+    @State private var widthBand: EQBand?
 
     var body: some View {
         NavigationStack {
@@ -62,6 +64,9 @@ struct EQView: View {
         .preferredColorScheme(.dark)
         .onAppear { spectrum.start() }
         .onDisappear { spectrum.stop() }
+        .sheet(item: $widthBand) { band in
+            bandWidthSheet(for: band)
+        }
     }
 
     private var presetChips: some View {
@@ -87,6 +92,59 @@ struct EQView: View {
             }
             .padding(.horizontal, AuraSpacing.md)
         }
+    }
+
+    /// Width (Q) editor for a single band.
+    private func bandWidthSheet(for band: EQBand) -> some View {
+        // Read the live value so the slider follows edits.
+        let live = eq.bands.first { $0.id == band.id } ?? band
+
+        return NavigationStack {
+            VStack(alignment: .leading, spacing: AuraSpacing.lg) {
+                HStack {
+                    Text("Width")
+                        .font(.auraCaption)
+                        .foregroundStyle(Color.textSecondary)
+                    Spacer()
+                    Text(String(format: "%.2f octaves", live.bandwidth))
+                        .font(.auraTimestamp)
+                        .foregroundStyle(Color.accent)
+                }
+
+                Slider(
+                    value: Binding(
+                        get: { Double(live.bandwidth) },
+                        set: { eq.setBand(band.id, bandwidth: Float($0)) }
+                    ),
+                    in: Double(EQEngine.minBandwidth)...Double(EQEngine.maxBandwidth)
+                )
+                .tint(Color.accent)
+
+                Text("Narrow settings affect a tight range around \(live.label)Hz — good for removing a resonance. Wider settings shape overall tone.")
+                    .font(.auraCaption)
+                    .foregroundStyle(Color.textTertiary)
+
+                EQCurveView(bands: eq.bands, preamp: eq.preamp)
+
+                Spacer()
+            }
+            .padding(AuraSpacing.xl)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.background)
+            .navigationTitle("\(live.label)Hz Band")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") { widthBand = nil }.foregroundStyle(Color.accent)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Reset") { eq.setBand(band.id, bandwidth: 1.0) }
+                        .foregroundStyle(Color.accent)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .preferredColorScheme(.dark)
     }
 
     private var preampControl: some View {
@@ -125,6 +183,8 @@ struct EQView: View {
                 EQBandSlider(band: band) { gain in
                     eq.setBand(band.id, gain: gain)
                 }
+                // Long-press a band to shape how wide its effect is.
+                .onLongPressGesture { widthBand = band }
             }
         }
         .padding(.horizontal, AuraSpacing.sm)
