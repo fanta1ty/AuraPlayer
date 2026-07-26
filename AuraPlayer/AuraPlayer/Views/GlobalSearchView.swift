@@ -31,17 +31,7 @@ struct GlobalSearchView: View {
 
     private var albums: [Album] {
         guard !trimmed.isEmpty else { return [] }
-        return Dictionary(grouping: library.tracks) { track in
-            "\(track.album)\u{1F}\(track.effectiveAlbumArtist)"
-        }
-        .compactMap { key, tracks -> Album? in
-            guard let first = tracks.first,
-                  first.album.localizedCaseInsensitiveContains(trimmed)
-            else { return nil }
-            return Album(id: key, title: first.album,
-                         artist: first.effectiveAlbumArtist, tracks: tracks)
-        }
-        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        return AlbumGrouper.albums(from: library.tracks, matching: trimmed)
     }
 
     private var artists: [Artist] {

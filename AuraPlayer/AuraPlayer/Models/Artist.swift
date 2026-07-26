@@ -16,23 +16,9 @@ struct Artist: Identifiable {
 
     var trackCount: Int { tracks.count }
 
-    var albums: [Album] {
-        Dictionary(grouping: tracks) { track in
-            "\(track.album)\u{1F}\(track.effectiveAlbumArtist)"
-        }
-        .map { key, tracks in
-            Album(id: key,
-                  title: tracks.first?.album ?? "Unknown Album",
-                  artist: tracks.first?.effectiveAlbumArtist ?? name,
-                  tracks: tracks)
-        }
-            .sorted {
-                $0.title
-                    .localizedCaseInsensitiveCompare(
-                        $1.title
-                    ) == .orderedAscending
-            }
-    }
+    /// Same grouping rules as the Albums tab, so an artist page and the
+    /// library can never disagree about what counts as one record.
+    var albums: [Album] { AlbumGrouper.albums(from: tracks) }
 
     var albumCount: Int { albums.count }
 }

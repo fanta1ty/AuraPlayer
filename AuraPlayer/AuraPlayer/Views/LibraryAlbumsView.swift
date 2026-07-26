@@ -19,27 +19,7 @@ struct LibraryAlbumsView: View {
     ]
     
     private var albums: [Album] {
-        // Group by album *and* album artist: two different artists can have
-        // an album called "Greatest Hits", and a compilation's tracks must
-        // stay together instead of splitting per track artist.
-        Dictionary(grouping: library.tracks) { track in
-            "\(track.album)\u{1F}\(track.effectiveAlbumArtist)"
-        }
-        .map { key, tracks in
-            let first = tracks.first
-            return Album(
-                id: key,
-                title: first?.album ?? "Unknown Album",
-                artist: first?.effectiveAlbumArtist ?? "Unknown Artist",
-                tracks: tracks
-            )
-        }
-            .sorted {
-                $0.title
-                    .localizedCaseInsensitiveCompare(
-                        $1.title
-                    ) == .orderedAscending
-            }
+        AlbumGrouper.albums(from: library.tracks)
     }
     
     var body: some View {

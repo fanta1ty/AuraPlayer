@@ -63,8 +63,15 @@ struct Track: Identifiable, Hashable {
         self.dateAdded = dateAdded
     }
 
-    /// Who the album belongs to — falls back to the track artist.
-    var effectiveAlbumArtist: String { albumArtist ?? artist }
+    /// Who the album belongs to — falls back to the track artist. A tag that
+    /// exists but is blank is treated as absent; plenty of taggers write an
+    /// empty string rather than omitting the field.
+    var effectiveAlbumArtist: String {
+        guard let albumArtist,
+              !albumArtist.trimmingCharacters(in: .whitespaces).isEmpty
+        else { return artist }
+        return albumArtist
+    }
 
     /// Sort key that puts an album in disc/track order.
     var albumSortKey: (Int, Int, String) {
