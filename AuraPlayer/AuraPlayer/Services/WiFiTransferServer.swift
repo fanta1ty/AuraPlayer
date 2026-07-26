@@ -272,7 +272,7 @@ final class WiFiTransferServer: ObservableObject {
           }
           .wrap { max-width:680px; margin:0 auto; }
 
-          header { display:flex; align-items:center; gap:14px; margin-bottom:6px; }
+          header { display:flex; align-items:center; gap:13px; margin-bottom:10px; }
           .bars { display:flex; align-items:center; gap:3px; height:30px;
                   filter:drop-shadow(0 0 8px rgba(28,227,206,.55)); }
           .bars i { width:4px; border-radius:2px; background:var(--accent); display:block; }
@@ -281,9 +281,10 @@ final class WiFiTransferServer: ObservableObject {
           .bars i:nth-child(5){height:26px} .bars i:nth-child(6){height:16px}
           .bars i:nth-child(7){height:9px}
           h1 { font-size:21px; font-weight:600; letter-spacing:-.02em; margin:0; }
-          .sub { color:var(--faint); font-size:13px; margin:0 0 36px 44px; }
+          .sub { color:var(--faint); font-size:13px; margin:0 0 36px; }
 
           .drop {
+            display:block; width:100%;
             position:relative; border:1.5px dashed #232833; border-radius:18px;
             padding:44px 24px; text-align:center; background:var(--surface);
             transition:border-color .18s, background .18s, transform .18s; cursor:pointer;
