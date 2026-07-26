@@ -49,7 +49,8 @@ struct ListeningHistoryView: View {
                         HStack(spacing: AuraSpacing.md) {
                             TrackRow(track: track,
                                      isPlaying: player.currentTrackURL == track.url,
-                                     rating: stats.rating(for: track.url))
+                                     rating: stats.rating(for: track.url),
+                                 isPaused: !player.isPlaying)
 
                             if mode == .most {
                                 Text("\(stats.playCount(for: track.url))×")

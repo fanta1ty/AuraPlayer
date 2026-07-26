@@ -29,7 +29,8 @@ struct SmartPlaylistDetailView: View {
                     ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
                         TrackRow(track: track,
                                  isPlaying: player.currentTrackURL == track.url,
-                                 rating: stats.rating(for: track.url))
+                                 rating: stats.rating(for: track.url),
+                                 isPaused: !player.isPlaying)
                             .contentShape(Rectangle())
                             .onTapGesture { player.load(tracks: tracks, startAt: index) }
                             .listRowBackground(Color.background)

@@ -13,7 +13,10 @@ struct TrackRow: View {
     let track: Track
     var isPlaying: Bool = false
     var rating: Int = 0
-    
+    /// Drives the dancing bars — false shows them settled.
+    var isPaused: Bool = false
+
+
     var body: some View {
         HStack(spacing: AuraSpacing.md) {
             artwork
@@ -36,11 +39,17 @@ struct TrackRow: View {
             }
             
             Spacer()
-            
+
+            if isPlaying {
+                NowPlayingIndicator(isPlaying: !isPaused, size: 14)
+                    .transition(.scale.combined(with: .opacity))
+            }
+
             Text(Self.durationString(track.duration))
                 .font(.auraTimestamp)
                 .foregroundStyle(Color.textTertiary)
         }
+        .animation(.easeOut(duration: 0.25), value: isPlaying)
         .padding(.vertical, AuraSpacing.xs)
         // Read as one sentence instead of four separate fragments.
         .accessibilityElement(children: .ignore)
@@ -78,6 +87,13 @@ struct TrackRow: View {
         }
         .frame(width: 48, height: 48)
         .clipShape(RoundedRectangle(cornerRadius: AuraRadius.small))
+        // A soft accent ring marks the playing track without shouting.
+        .overlay(
+            RoundedRectangle(cornerRadius: AuraRadius.small)
+                .stroke(isPlaying ? Color.accent.opacity(0.8) : Color.white.opacity(0.06),
+                        lineWidth: 1)
+        )
+        .shadow(color: isPlaying ? Color.accent.opacity(0.35) : .clear, radius: 8)
     }
     
     static func durationString(_ t: TimeInterval) -> String {

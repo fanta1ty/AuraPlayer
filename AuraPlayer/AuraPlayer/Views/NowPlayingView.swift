@@ -117,11 +117,8 @@ struct NowPlayingView: View {
                         .overlay(Color.background.opacity(0.5))
                         .overlay(.ultraThinMaterial)
                 } else {
-                    LinearGradient(
-                        colors: [Color.surfaceElevated, Color.background],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+                    // No artwork — fall back to the drifting aurora.
+                    AuraBackground(intensity: 0.7)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -150,11 +147,9 @@ struct NowPlayingView: View {
                     .resizable()
                     .scaledToFill()
             } else {
+                // Untagged track: show the animated mark instead of a static note.
                 Color.surfaceElevated
-                    .overlay(
-                        Image(systemName: "music.note").font(.system(size: 64))
-                            .foregroundStyle(Color.accent)
-                    )
+                    .overlay(AuraLogoMark(size: 110, isAnimating: player.isPlaying))
             }
         }
         .aspectRatio(1, contentMode: .fit)

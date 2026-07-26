@@ -39,7 +39,9 @@ struct PlaylistDetailView: View {
             if !tracks.isEmpty {
                 Section {
                     ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                        TrackRow(track: track, isPlaying: player.currentTrackURL == track.url)
+                        TrackRow(track: track,
+                                 isPlaying: player.currentTrackURL == track.url,
+                                 isPaused: !player.isPlaying)
                             .contentShape(Rectangle())
                             .onTapGesture { player.load(tracks: tracks, startAt: index) }
                             .listRowBackground(Color.background)

@@ -185,7 +185,8 @@ struct LibrarySongsView: View {
                 TrackRow(
                     track: track,
                     isPlaying: player.currentTrackURL == track.url,
-                    rating: stats.rating(for: track.url)
+                    rating: stats.rating(for: track.url),
+                    isPaused: !player.isPlaying
                 )
                 .contentShape(Rectangle())
                 // Tap-to-play only outside edit mode; in edit mode taps select.
@@ -273,20 +274,30 @@ struct LibrarySongsView: View {
     }
     
     private var emptyState: some View {
-        VStack(spacing: AuraSpacing.md) {
-            Image(systemName: "music.note.list")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.textTertiary)
-            Text("No songs yet")
-                .font(.auraTitle)
-                .foregroundStyle(Color.textPrimary)
-            Text("Add audio files to AuraPlayer in the Files app, then pull down to refresh.")
-                .font(.auraBody)
-                .foregroundStyle(Color.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, AuraSpacing.xl)
+        ZStack {
+            AuraBackground(intensity: 0.8)
+
+            VStack(spacing: AuraSpacing.lg) {
+                AuraLogoMark(size: 84, isAnimating: true)
+
+                VStack(spacing: AuraSpacing.sm) {
+                    Text("No songs yet")
+                        .font(.auraTitle)
+                        .foregroundStyle(Color.textPrimary)
+                    Text("Import files, paste a download link, or use Wi-Fi transfer from your computer.")
+                        .font(.auraBody)
+                        .foregroundStyle(Color.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, AuraSpacing.xl)
+                }
+
+                AuraButton("Import Music", systemImage: "square.and.arrow.down", variant: .primary) {
+                    showImporter = true
+                }
+                .padding(.horizontal, AuraSpacing.xxl)
+                .padding(.top, AuraSpacing.sm)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.background)
     }
 }

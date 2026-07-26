@@ -90,7 +90,8 @@ private struct ComposerDetailView: View {
                 ForEach(Array(sorted.enumerated()), id: \.element.id) { index, track in
                     TrackRow(track: track,
                              isPlaying: player.currentTrackURL == track.url,
-                             rating: stats.rating(for: track.url))
+                             rating: stats.rating(for: track.url),
+                                 isPaused: !player.isPlaying)
                         .contentShape(Rectangle())
                         .onTapGesture { player.load(tracks: sorted, startAt: index) }
                         .listRowBackground(Color.background)
