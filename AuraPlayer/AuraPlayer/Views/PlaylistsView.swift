@@ -9,6 +9,8 @@ import SwiftUI
 
 struct PlaylistsView: View {
     @EnvironmentObject var playlists: PlaylistViewModel
+    @EnvironmentObject var library: LibraryViewModel
+    @EnvironmentObject var stats: TrackStatsViewModel
     @State private var showingCreate = false
     @State private var newName = ""
     
@@ -45,10 +47,20 @@ struct PlaylistsView: View {
             .background(Color.background)
             .navigationTitle("Playlists")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        SmartPlaylistsView()
+                    } label: {
+                        Image(systemName: "wand.and.stars")
+                            .foregroundStyle(Color.accent)
+                    }
+                    .accessibilityLabel("Smart playlists")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showingCreate = true } label: {
                         Image(systemName: "plus").foregroundStyle(Color.accent)
                     }
+                    .accessibilityLabel("New playlist")
                 }
             }
             .alert("New Playlist", isPresented: $showingCreate) {
