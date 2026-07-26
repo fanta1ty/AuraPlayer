@@ -50,6 +50,14 @@ struct SettingsView: View {
                     .listRowBackground(Color.surface)
 
                     NavigationLink {
+                        BackupView()
+                    } label: {
+                        Label("Backup & Restore", systemImage: "arrow.clockwise.icloud")
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                    .listRowBackground(Color.surface)
+
+                    NavigationLink {
                         StorageView()
                     } label: {
                         Label("Storage", systemImage: "internaldrive")

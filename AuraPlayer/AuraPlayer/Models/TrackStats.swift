@@ -14,4 +14,6 @@ struct TrackStats: Codable, Hashable {
     var playCount: Int = 0
     /// When this track last passed the play-count threshold.
     var lastPlayed: Date?
+    /// Where the listener stopped, for long files (mixes, live sets, audiobooks).
+    var resumePosition: TimeInterval?
 }

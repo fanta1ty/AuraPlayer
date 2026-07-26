@@ -61,6 +61,13 @@ struct ContentView: View {
             player.onPlayedThreshold = { url in
                 stats.incrementPlayCount(for: url)
             }
+            // Long files remember where you stopped.
+            player.resumePositionProvider = { url, _ in
+                stats.resumePosition(for: url)
+            }
+            player.onPositionChanged = { url, time, duration in
+                stats.setResumePosition(time, duration: duration, for: url)
+            }
             
             if library.tracks.isEmpty {
                 await library.scan()

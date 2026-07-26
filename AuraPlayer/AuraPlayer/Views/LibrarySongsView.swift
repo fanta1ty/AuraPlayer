@@ -24,6 +24,7 @@ struct LibrarySongsView: View {
     @State private var selection = Set<Track.ID>()
     @State private var isSelecting = false
     @State private var showBatchEdit = false
+    @State private var showGlobalSearch = false
 
     private var selectedTracks: [Track] {
         displayedTracks.filter { selection.contains($0.id) }
@@ -95,6 +96,16 @@ struct LibrarySongsView: View {
                     .disabled(isImporting)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showGlobalSearch = true
+                    } label: {
+                        Image(systemName: "sparkle.magnifyingglass")
+                            .foregroundStyle(Color.accent)
+                    }
+                    .accessibilityLabel("Search everything")
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(isSelecting ? "Done" : "Select") {
                         withAnimation {
                             isSelecting.toggle()
@@ -129,6 +140,13 @@ struct LibrarySongsView: View {
             }
             .searchable(text: $searchText, prompt: "Search songs or artists")
             .environment(\.editMode, .constant(isSelecting ? .active : .inactive))
+            .sheet(isPresented: $showGlobalSearch) {
+                GlobalSearchView()
+                    .environmentObject(library)
+                    .environmentObject(player)
+                    .environmentObject(stats)
+                    .environmentObject(playlists)
+            }
             .sheet(isPresented: $showBatchEdit) {
                 BatchEditView(tracks: selectedTracks)
                     .environmentObject(library)
@@ -181,6 +199,20 @@ struct LibrarySongsView: View {
                     } label: {
                         Label("Edit Info", systemImage: "pencil")
                     }
+
+                    Button {
+                        player.playNext(track)
+                    } label: {
+                        Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
+                    }
+
+                    Button {
+                        player.addToQueue(track)
+                    } label: {
+                        Label("Add to Queue", systemImage: "text.append")
+                    }
+
+                    Divider()
 
                     Menu("Add to Playlist") {
                         ForEach(playlists.playlists) { playlist in

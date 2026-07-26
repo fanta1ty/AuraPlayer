@@ -78,6 +78,11 @@ final class PlayerViewModel: ObservableObject {
     
     /// Fires once per play when the track passes the 30s threshold.
     var onPlayedThreshold: ((URL) -> Void)?
+
+    /// Asked for a saved position when a long track starts. Return nil to start at 0.
+    var resumePositionProvider: ((URL, TimeInterval) -> TimeInterval?)?
+    /// Called periodically so the current position can be remembered.
+    var onPositionChanged: ((URL, TimeInterval, TimeInterval) -> Void)?
     private var countedThisPlay = false
     private let playCountThreshold: TimeInterval = 30
 
@@ -191,6 +196,11 @@ final class PlayerViewModel: ObservableObject {
         loadWaveform(for: url)
         applyNormalization(for: url)
         loadLyrics(for: url)
+
+        // Long files (mixes, live sets) pick up where they were left off.
+        if let resume = resumePositionProvider?(url, duration), resume > 0 {
+            seek(toProgress: duration > 0 ? resume / duration : 0)
+        }
     }
 
     /// Use metadata from the scanned track when we have it, else read tags async.
@@ -664,6 +674,42 @@ final class PlayerViewModel: ObservableObject {
         }
     }
     
+    /// Insert a track directly after the one playing.
+    func playNext(_ track: Track) {
+        insert(track, at: position + 1)
+    }
+
+    /// Append a track to the end of the queue.
+    func addToQueue(_ track: Track) {
+        insert(track, at: order.count)
+    }
+
+    func addToQueue(_ tracks: [Track]) {
+        for track in tracks { insert(track, at: order.count) }
+    }
+
+    /// Adds the track to the underlying queue and splices it into the play order.
+    private func insert(_ track: Track, at orderIndex: Int) {
+        trackIndex[track.url] = track
+
+        // Nothing playing yet — just start this track.
+        guard !queue.isEmpty else {
+            load(tracks: [track])
+            return
+        }
+
+        queue.append(track.url)
+        let queueIndex = queue.count - 1
+        let target = min(max(orderIndex, 0), order.count)
+        order.insert(queueIndex, at: target)
+
+        // Keep the pointer on the currently playing track.
+        if target <= position { position += 1 }
+
+        gaplessArmed = false          // the "next" track changed
+        saveSession()
+    }
+
     func playQueueItem(at orderIndex: Int) {
         guard order.indices.contains(orderIndex) else { return }
         position = orderIndex
@@ -764,6 +810,9 @@ final class PlayerViewModel: ObservableObject {
             if self.tickCount % 50 == 0 {      // 0.1s × 50 = every 5s
                 self.refreshNowPlayingState()
                 self.saveSession()             // survive a crash or force-quit
+                if let url = self.currentTrackURL {
+                    self.onPositionChanged?(url, self.currentTime, self.duration)
+                }
             }
         }
     }

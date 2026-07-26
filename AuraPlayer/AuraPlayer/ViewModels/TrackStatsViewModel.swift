@@ -40,6 +40,39 @@ final class TrackStatsViewModel: ObservableObject {
 
     func lastPlayed(for url: URL) -> Date? { entry(for: url).lastPlayed }
 
+    // MARK: - Resume position
+    //
+    // Only worth remembering for long files — nobody wants a 3-minute song to
+    // resume 40 seconds in, but a 90-minute mix absolutely should.
+
+    static let resumeMinimumDuration: TimeInterval = 20 * 60   // 20 minutes
+    /// Ignore positions near the very start or end.
+    private static let resumeEdgeMargin: TimeInterval = 30
+
+    func resumePosition(for url: URL) -> TimeInterval? {
+        entry(for: url).resumePosition
+    }
+
+    /// Store where playback stopped, if this file is long enough to warrant it.
+    func setResumePosition(_ time: TimeInterval, duration: TimeInterval, for url: URL) {
+        guard duration >= Self.resumeMinimumDuration else { return }
+
+        var e = entry(for: url)
+        let isNearEdge = time < Self.resumeEdgeMargin
+            || time > duration - Self.resumeEdgeMargin
+        e.resumePosition = isNearEdge ? nil : time
+        stats[url.lastPathComponent] = e
+        persist()
+    }
+
+    func clearResumePosition(for url: URL) {
+        var e = entry(for: url)
+        guard e.resumePosition != nil else { return }
+        e.resumePosition = nil
+        stats[url.lastPathComponent] = e
+        persist()
+    }
+
     /// Tracks played at least once, newest first.
     func recentlyPlayed(from tracks: [Track], limit: Int = 50) -> [Track] {
         tracks
