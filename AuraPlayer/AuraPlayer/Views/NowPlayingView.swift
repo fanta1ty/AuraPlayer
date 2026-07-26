@@ -17,6 +17,7 @@ struct NowPlayingView: View {
     @Environment(\.dismiss) private var dismiss
     
     @EnvironmentObject var eq: EQEngine
+    @EnvironmentObject var library: LibraryViewModel
 
     @StateObject private var sleepTimer = SleepTimer.shared
 
@@ -91,7 +92,9 @@ struct NowPlayingView: View {
             SleepTimerView()
         }
         .sheet(isPresented: $showLyrics) {
-            LyricsView().environmentObject(player)
+            LyricsView()
+                .environmentObject(player)
+                .environmentObject(library)
         }
         .sheet(isPresented: $showQueue) {
             QueueView()

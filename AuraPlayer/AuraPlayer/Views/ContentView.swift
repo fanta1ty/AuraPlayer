@@ -70,6 +70,7 @@ struct ContentView: View {
                 .environmentObject(player)
                 .environmentObject(stats)
                 .environmentObject(eq)
+                .environmentObject(library)
         }
     }
 }

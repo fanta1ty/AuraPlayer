@@ -20,6 +20,14 @@ struct LibrarySongsView: View {
     @State private var isImporting = false
     @State private var editingTrack: Track?
     @State private var infoTrack: Track?
+
+    @State private var selection = Set<Track.ID>()
+    @State private var isSelecting = false
+    @State private var showBatchEdit = false
+
+    private var selectedTracks: [Track] {
+        displayedTracks.filter { selection.contains($0.id) }
+    }
     @State private var sort: SortOrder = .title
     
     enum SortOrder: String, CaseIterable, Identifiable {
@@ -87,6 +95,28 @@ struct LibrarySongsView: View {
                     .disabled(isImporting)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button(isSelecting ? "Done" : "Select") {
+                        withAnimation {
+                            isSelecting.toggle()
+                            if !isSelecting { selection.removeAll() }
+                        }
+                    }
+                    .foregroundStyle(Color.accent)
+                }
+
+                if isSelecting {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button {
+                            showBatchEdit = true
+                        } label: {
+                            Label("Edit \(selection.count) Selected", systemImage: "pencil")
+                        }
+                        .disabled(selection.isEmpty)
+                        .foregroundStyle(selection.isEmpty ? Color.textDisabled : Color.accent)
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Picker("Sort", selection: $sort) {
                             ForEach(SortOrder.allCases) { Text($0.rawValue).tag($0) }
@@ -98,6 +128,11 @@ struct LibrarySongsView: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Search songs or artists")
+            .environment(\.editMode, .constant(isSelecting ? .active : .inactive))
+            .sheet(isPresented: $showBatchEdit) {
+                BatchEditView(tracks: selectedTracks)
+                    .environmentObject(library)
+            }
             .sheet(item: $infoTrack) { track in
                 TrackInfoView(track: track)
                     .environmentObject(stats)
@@ -124,7 +159,7 @@ struct LibrarySongsView: View {
     }
     
     private var songList: some View {
-        List {
+        List(selection: $selection) {
             ForEach(displayedTracks) { track in
                 TrackRow(
                     track: track,
@@ -132,7 +167,8 @@ struct LibrarySongsView: View {
                     rating: stats.rating(for: track.url)
                 )
                 .contentShape(Rectangle())
-                .onTapGesture { play(track) }
+                // Tap-to-play only outside edit mode; in edit mode taps select.
+                .onTapGesture { if !isSelecting { play(track) } }
                 .contextMenu {
                     Button {
                         infoTrack = track

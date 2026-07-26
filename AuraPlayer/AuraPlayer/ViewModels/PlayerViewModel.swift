@@ -158,6 +158,12 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var isLoadingLyrics = false
     private var lyricsTask: Task<Void, Never>?
 
+    /// Re-read lyrics for the current track (after editing a sidecar .lrc).
+    func reloadLyrics() {
+        guard let url = currentTrackURL else { return }
+        loadLyrics(for: url)
+    }
+
     private func loadLyrics(for url: URL) {
         lyricsTask?.cancel()
         lyrics = Lyrics(lines: [])

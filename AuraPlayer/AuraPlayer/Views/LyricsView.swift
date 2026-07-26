@@ -12,8 +12,17 @@ struct LyricsView: View {
     @EnvironmentObject var player: PlayerViewModel
     @Environment(\.dismiss) private var dismiss
 
+    @EnvironmentObject var library: LibraryViewModel
+    @State private var showEditor = false
+
     private var activeIndex: Int? {
         player.lyrics.activeIndex(at: player.currentTime)
+    }
+
+    /// The Track for whatever is playing, needed to write the sidecar file.
+    private var currentTrack: Track? {
+        guard let url = player.currentTrackURL else { return nil }
+        return library.tracks.first { $0.url == url }
     }
 
     var body: some View {
@@ -38,6 +47,18 @@ struct LyricsView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }.foregroundStyle(Color.accent)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if currentTrack != nil {
+                        Button("Edit") { showEditor = true }
+                            .foregroundStyle(Color.accent)
+                    }
+                }
+            }
+            .sheet(isPresented: $showEditor) {
+                if let track = currentTrack {
+                    LyricsEditorView(track: track)
+                        .environmentObject(player)
                 }
             }
         }
