@@ -14,7 +14,17 @@ struct PlaylistDetailView: View {
     @EnvironmentObject var library: LibraryViewModel
     @EnvironmentObject var player: PlayerViewModel
     
+    @State private var exportURL: ExportedPlaylist?
+
     private var playlist: Playlist? { playlists.playlist(id: playlistID) }
+
+    /// Write the playlist as .m3u8 and offer it via the share sheet.
+    private func exportM3U() {
+        guard let playlist,
+              let url = M3UService.export(name: playlist.name, tracks: tracks)
+        else { return }
+        exportURL = ExportedPlaylist(url: url)
+    }
     
     /// Resolve stored filenames against the scanned library, preserving order.
     private var tracks: [Track] {
@@ -63,6 +73,39 @@ struct PlaylistDetailView: View {
         }
         .navigationTitle(playlist?.name ?? "Playlist")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { EditButton().foregroundStyle(Color.accent) }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    exportM3U()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundStyle(Color.accent)
+                }
+                .disabled(tracks.isEmpty)
+                .accessibilityLabel("Export playlist")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                EditButton().foregroundStyle(Color.accent)
+            }
+        }
+        .sheet(item: $exportURL) { item in
+            PlaylistShareSheet(url: item.url)
+        }
     }
+}
+
+/// Wrapper so a URL can drive `sheet(item:)`.
+struct ExportedPlaylist: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
+}
+
+struct PlaylistShareSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

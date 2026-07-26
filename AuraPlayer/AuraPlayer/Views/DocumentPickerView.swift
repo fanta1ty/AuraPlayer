@@ -16,8 +16,9 @@ struct DocumentPickerView: UIViewControllerRepresentable {
     /// Broad audio coverage: the generic `.audio` type plus explicit
     /// entries for formats that don't always conform to it (FLAC, DSD…).
     private static var supportedTypes: [UTType] {
-        var types: [UTType] = [.audio, .mp3, .wav, .aiff, .mpeg4Audio]
-        for ext in ["flac", "alac", "aac", "ogg", "dsf", "dff"] {
+        // Audio, plus zipped albums and .m3u playlists.
+        var types: [UTType] = [.audio, .mp3, .wav, .aiff, .mpeg4Audio, .zip]
+        for ext in ["flac", "alac", "aac", "ogg", "dsf", "dff", "m3u", "m3u8"] {
             if let type = UTType(filenameExtension: ext) {
                 types.append(type)
             }

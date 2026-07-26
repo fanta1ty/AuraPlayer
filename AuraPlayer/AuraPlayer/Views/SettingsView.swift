@@ -50,6 +50,14 @@ struct SettingsView: View {
                     .listRowBackground(Color.surface)
 
                     NavigationLink {
+                        LibraryMaintenanceView()
+                    } label: {
+                        Label("Library Cleanup", systemImage: "sparkles")
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                    .listRowBackground(Color.surface)
+
+                    NavigationLink {
                         BackupView()
                     } label: {
                         Label("Backup & Restore", systemImage: "arrow.clockwise.icloud")

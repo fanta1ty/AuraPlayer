@@ -168,7 +168,7 @@ struct LibrarySongsView: View {
                     guard !urls.isEmpty else { return }
                     isImporting = true
                     Task {
-                        AudioImporter.importFiles(urls)
+                        await handleImport(urls)
                         await library.scan()
                         isImporting = false
                     }
@@ -235,6 +235,38 @@ struct LibrarySongsView: View {
         .refreshable { await library.scan() }
     }
     
+    /// Route each picked file by type: archives are unpacked, .m3u files
+    /// become playlists, everything else is copied in as audio.
+    private func handleImport(_ urls: [URL]) async {
+        var audio: [URL] = []
+
+        for url in urls {
+            switch url.pathExtension.lowercased() {
+            case "zip":
+                _ = await ZipImporter.importArchive(at: url)
+
+            case "m3u", "m3u8":
+                // Resolve against the library as it stands right now.
+                if let result = M3UService.importPlaylist(from: url, library: library.tracks),
+                   !result.matched.isEmpty {
+                    playlists.create(name: result.name)
+                    if let created = playlists.playlists.last {
+                        for track in result.matched {
+                            playlists.add(track: track, to: created)
+                        }
+                    }
+                }
+
+            default:
+                audio.append(url)
+            }
+        }
+
+        if !audio.isEmpty {
+            AudioImporter.importFiles(audio)
+        }
+    }
+
     private func play(_ track: Track) {
         guard let start = displayedTracks.firstIndex(of: track) else { return }
         player.load(tracks: displayedTracks, startAt: start)
