@@ -28,7 +28,7 @@ final class SleepTimer: ObservableObject {
     var fadeDuration: TimeInterval = 10
 
     /// Set by PlayerViewModel so the timer can pause playback.
-    var onFire: (() -> Void)?
+    var onFire: (@MainActor () -> Void)?
 
     private var timer: Timer?
     private var mixer: AVAudioMixerNode { AuraAudioEngine.shared.engine.mainMixerNode }

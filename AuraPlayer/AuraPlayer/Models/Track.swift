@@ -20,9 +20,11 @@ struct Track: Identifiable, Hashable {
     let url: URL
     var artworkData: Data?
     var dateAdded: Date
-    var playCount: Int
-    var rating: Int // 0...5
-    
+
+    // Note: ratings and play counts live in TrackStatsViewModel, not here —
+    // they must survive library rescans, which rebuild every Track.
+
+
     init(
         id: UUID = UUID(),
         title: String,
@@ -33,9 +35,7 @@ struct Track: Identifiable, Hashable {
         duration: TimeInterval,
         url: URL,
         artworkData: Data? = nil,
-        dateAdded: Date = .now,
-        playCount: Int = 0,
-        rating: Int = 0
+        dateAdded: Date = .now
     ) {
         self.id = id
         self.title = title
@@ -47,7 +47,5 @@ struct Track: Identifiable, Hashable {
         self.url = url
         self.artworkData = artworkData
         self.dateAdded = dateAdded
-        self.playCount = playCount
-        self.rating = rating
     }
 }

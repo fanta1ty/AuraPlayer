@@ -20,23 +20,29 @@ enum LoudnessAnalyzer {
     /// Never boost or cut more than this.
     private static let maxAdjustment: Float = 12
 
-    private static let cacheKey = "replaygain.cache"
-
     // MARK: - Cache
+    //
+    // Stored as a bounded JSON file rather than UserDefaults: this grows with
+    // the size of the library, and UserDefaults is loaded into memory wholesale.
+
+    private static let cacheURL = JSONFileStore.cachesURL("replaygain.json")
+
+    private static var cache: BoundedCache<Float> = {
+        JSONFileStore.load(BoundedCache<Float>.self, from: cacheURL) ?? BoundedCache<Float>()
+    }()
 
     private static func cached(_ key: String) -> Float? {
-        let cache = UserDefaults.standard.dictionary(forKey: cacheKey) as? [String: Double]
-        return cache?[key].map(Float.init)
+        cache[key]
     }
 
     private static func store(_ gain: Float, for key: String) {
-        var cache = UserDefaults.standard.dictionary(forKey: cacheKey) as? [String: Double] ?? [:]
-        cache[key] = Double(gain)
-        UserDefaults.standard.set(cache, forKey: cacheKey)
+        cache[key] = gain
+        JSONFileStore.save(cache, to: cacheURL)
     }
 
     static func clearCache() {
-        UserDefaults.standard.removeObject(forKey: cacheKey)
+        cache.removeAll()
+        JSONFileStore.save(cache, to: cacheURL)
     }
 
     // MARK: - Analysis

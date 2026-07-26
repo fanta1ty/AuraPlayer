@@ -17,12 +17,12 @@ enum PlaylistStore {
     }
 
     static func load() -> [Playlist] {
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        return (try? JSONDecoder().decode([Playlist].self, from: data)) ?? []
+        JSONFileStore.load([Playlist].self, from: fileURL) ?? []
     }
 
-    static func save(_ playlists: [Playlist]) {
-        guard let data = try? JSONEncoder().encode(playlists) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+    /// Returns false if the write failed (logged by JSONFileStore).
+    @discardableResult
+    static func save(_ playlists: [Playlist]) -> Bool {
+        JSONFileStore.save(playlists, to: fileURL)
     }
 }

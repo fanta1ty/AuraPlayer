@@ -33,17 +33,24 @@ enum ArtworkCache {
     }
 
     // MARK: - Misses
+    //
+    // Tracks we already failed to match, so we don't re-query the network on
+    // every scan. Bounded and stored as JSON — the previous array in
+    // UserDefaults grew forever and was scanned linearly on every lookup.
 
-    private static let missKey = "artwork.misses"
+    private static let missesURL = JSONFileStore.cachesURL("artwork-misses.json")
+
+    private static var misses: BoundedCache<Bool> = {
+        JSONFileStore.load(BoundedCache<Bool>.self, from: missesURL) ?? BoundedCache<Bool>()
+    }()
 
     static func isKnownMiss(_ key: String) -> Bool {
-        (UserDefaults.standard.stringArray(forKey: missKey) ?? []).contains(key)
+        misses.contains(key)
     }
 
     static func markMiss(_ key: String) {
-        var misses = UserDefaults.standard.stringArray(forKey: missKey) ?? []
         guard !misses.contains(key) else { return }
-        misses.append(key)
-        UserDefaults.standard.set(misses, forKey: missKey)
+        misses[key] = true
+        JSONFileStore.save(misses, to: missesURL)
     }
 }

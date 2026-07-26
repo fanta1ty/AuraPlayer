@@ -17,6 +17,7 @@ enum RepeatMode: Int {
     case none, one, all
 }
 
+@MainActor
 final class PlayerViewModel: ObservableObject {
 
     // MARK: - Published state
@@ -93,8 +94,9 @@ final class PlayerViewModel: ObservableObject {
     private func setupSessionHandling() {
         let session = AudioSessionManager.shared
 
+        // Notifications can arrive off the main thread, so hop explicitly.
         session.onShouldPause = { [weak self] in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 guard let self, self.isPlaying else { return }
                 self.wasPlayingBeforeInterruption = true
                 self.togglePlayPause()
@@ -102,7 +104,7 @@ final class PlayerViewModel: ObservableObject {
         }
 
         session.onMayResume = { [weak self] in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 guard let self,
                       self.wasPlayingBeforeInterruption,
                       !self.isPlaying else { return }
@@ -644,25 +646,42 @@ final class PlayerViewModel: ObservableObject {
     /// app — without it, nowPlayingInfo never appears on the lock screen.
     private func setupRemoteCommands() {
         LockScreenManager.shared.configureRemoteCommands(
+            // Remote commands are delivered by MediaPlayer off the main actor.
             LockScreenManager.Handlers(
                 play: { [weak self] in
-                    guard let self, !self.isPlaying else { return }
-                    self.togglePlayPause()
+                    Task { @MainActor in
+                        guard let self, !self.isPlaying else { return }
+                        self.togglePlayPause()
+                    }
                 },
                 pause: { [weak self] in
-                    guard let self, self.isPlaying else { return }
-                    self.togglePlayPause()
+                    Task { @MainActor in
+                        guard let self, self.isPlaying else { return }
+                        self.togglePlayPause()
+                    }
                 },
-                toggle: { [weak self] in self?.togglePlayPause() },
-                next: { [weak self] in self?.skipNext() },
-                previous: { [weak self] in self?.skipPrevious() },
+                toggle: { [weak self] in
+                    Task { @MainActor in self?.togglePlayPause() }
+                },
+                next: { [weak self] in
+                    Task { @MainActor in self?.skipNext() }
+                },
+                previous: { [weak self] in
+                    Task { @MainActor in self?.skipPrevious() }
+                },
                 seek: { [weak self] time in
-                    guard let self, self.duration > 0 else { return }
-                    self.seek(toProgress: time / self.duration)
+                    Task { @MainActor in
+                        guard let self, self.duration > 0 else { return }
+                        self.seek(toProgress: time / self.duration)
+                    }
                 }
             )
         )
     }
 
-    deinit { stopTicking() }
+    deinit {
+        timer?.invalidate()
+        waveformTask?.cancel()
+        lyricsTask?.cancel()
+    }
 }

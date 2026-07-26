@@ -39,8 +39,7 @@ enum DownloadHistory {
     }
 
     static func load() -> [DownloadRecord] {
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        let records = (try? JSONDecoder().decode([DownloadRecord].self, from: data)) ?? []
+        let records = JSONFileStore.load([DownloadRecord].self, from: fileURL) ?? []
         return records.sorted { $0.date > $1.date }
     }
 
@@ -64,7 +63,6 @@ enum DownloadHistory {
     }
 
     private static func save(_ records: [DownloadRecord]) {
-        guard let data = try? JSONEncoder().encode(records) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        JSONFileStore.save(records, to: fileURL)
     }
 }

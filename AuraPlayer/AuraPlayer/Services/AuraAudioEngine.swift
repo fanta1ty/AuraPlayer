@@ -57,7 +57,8 @@ final class AuraAudioEngine {
     private(set) var isCrossfading = false
 
     /// Fires when the ACTIVE track finishes naturally (not via stop/seek/skip).
-    var onTrackFinished: (() -> Void)?
+    /// Always delivered on the main actor.
+    var onTrackFinished: (@MainActor () -> Void)?
 
     private init() {
         buildGraph()
@@ -280,7 +281,7 @@ final class AuraAudioEngine {
             DispatchQueue.main.async {
                 guard gen == self.slots[index].generation else { return }  // stale
                 guard index == self.activeIndex else { return }            // outgoing track
-                self.onTrackFinished?()
+                MainActor.assumeIsolated { self.onTrackFinished?() }
             }
         }
 

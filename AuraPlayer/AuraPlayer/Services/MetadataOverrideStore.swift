@@ -27,13 +27,13 @@ enum MetadataOverrideStore {
     // MARK: - Load / save
 
     static func load() -> [String: TrackOverride] {
-        guard let data = try? Data(contentsOf: fileURL) else { return [:] }
-        return (try? JSONDecoder().decode([String: TrackOverride].self, from: data)) ?? [:]
+        JSONFileStore.load([String: TrackOverride].self, from: fileURL) ?? [:]
     }
 
-    static func save(_ overrides: [String: TrackOverride]) {
-        guard let data = try? JSONEncoder().encode(overrides) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+    /// Returns false if the write failed (logged by JSONFileStore).
+    @discardableResult
+    static func save(_ overrides: [String: TrackOverride]) -> Bool {
+        JSONFileStore.save(overrides, to: fileURL)
     }
 
     // MARK: - Artwork
