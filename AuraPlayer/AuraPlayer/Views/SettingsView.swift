@@ -18,6 +18,14 @@ struct SettingsView: View {
             List {
                 Section {
                     NavigationLink {
+                        WiFiTransferView()
+                    } label: {
+                        Label("Wi-Fi Transfer", systemImage: "wifi")
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                    .listRowBackground(Color.surface)
+
+                    NavigationLink {
                         ListeningHistoryView()
                     } label: {
                         Label("Listening History", systemImage: "clock")
