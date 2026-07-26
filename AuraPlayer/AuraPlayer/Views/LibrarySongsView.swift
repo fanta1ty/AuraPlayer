@@ -19,6 +19,7 @@ struct LibrarySongsView: View {
     @State private var showImporter = false
     @State private var isImporting = false
     @State private var editingTrack: Track?
+    @State private var infoTrack: Track?
     @State private var sort: SortOrder = .title
     
     enum SortOrder: String, CaseIterable, Identifiable {
@@ -97,6 +98,10 @@ struct LibrarySongsView: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Search songs or artists")
+            .sheet(item: $infoTrack) { track in
+                TrackInfoView(track: track)
+                    .environmentObject(stats)
+            }
             .sheet(item: $editingTrack) { track in
                 MetadataEditorView(track: track)
                     .environmentObject(library)
@@ -129,6 +134,12 @@ struct LibrarySongsView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { play(track) }
                 .contextMenu {
+                    Button {
+                        infoTrack = track
+                    } label: {
+                        Label("Info", systemImage: "info.circle")
+                    }
+
                     Button {
                         editingTrack = track
                     } label: {
