@@ -56,9 +56,17 @@ final class AuraAudioEngine {
     private var crossfadeTimer: Timer?
     private(set) var isCrossfading = false
 
+    /// Slot holding a track scheduled to begin the instant the current one ends.
+    private var gaplessArmedSlot: Int?
+    var isGaplessArmed: Bool { gaplessArmedSlot != nil }
+
     /// Fires when the ACTIVE track finishes naturally (not via stop/seek/skip).
     /// Always delivered on the main actor.
     var onTrackFinished: (@MainActor () -> Void)?
+
+    /// Fires when a gapless hand-off has already happened — the next track is
+    /// playing, so the queue pointer just needs to catch up.
+    var onGaplessAdvance: (@MainActor () -> Void)?
 
     private init() {
         buildGraph()
@@ -219,6 +227,7 @@ final class AuraAudioEngine {
     /// Load and play immediately on the active slot (hard switch).
     func play(url: URL, gainDB: Float = 0) {
         cancelCrossfade()
+        cancelGapless()
 
         do {
             let file = try AVAudioFile(forReading: url)
@@ -276,6 +285,67 @@ final class AuraAudioEngine {
         return true
     }
 
+    /// Schedule the next track to begin at the exact sample the current one
+    /// ends, so there is no silence between them.
+    ///
+    /// Requires both files to share a sample rate — a rate change would need a
+    /// graph rewire (which stops the engine) and can't be sample-accurate.
+    @discardableResult
+    func queueGapless(to url: URL, gainDB: Float = 0) -> Bool {
+        guard !isCrossfading, gaplessArmedSlot == nil else { return false }
+
+        let current = activeIndex
+        guard let currentFile = slots[current].file,
+              players[current].isPlaying,
+              let file = try? AVAudioFile(forReading: url)
+        else { return false }
+
+        // Sample-exact scheduling is only meaningful at a matching rate.
+        guard file.processingFormat.sampleRate == currentFile.processingFormat.sampleRate,
+              file.processingFormat.channelCount == currentFile.processingFormat.channelCount
+        else { return false }
+
+        let next = inactiveIndex
+        guard wire(slot: next, format: file.processingFormat) else { return false }
+
+        // How many frames of the current track are still to play.
+        guard let nodeTime = players[current].lastRenderTime,
+              let playerTime = players[current].playerTime(forNodeTime: nodeTime)
+        else { return false }
+
+        let played = slots[current].seekFrame + playerTime.sampleTime
+        let remaining = slots[current].lengthSamples - played
+        guard remaining > 0 else { return false }
+
+        slots[next].file = file
+        slots[next].sampleRate = file.processingFormat.sampleRate
+        slots[next].lengthSamples = file.length
+        slots[next].seekFrame = 0
+        slots[next].gainDB = gainDB
+
+        schedule(file: file, slot: next, startingFrame: nil)
+        applyVolume(slot: next, fade: 1)
+        start()
+
+        // Start the idle node exactly when the active one runs out.
+        let startTime = AVAudioTime(sampleTime: nodeTime.sampleTime + remaining,
+                                    atRate: nodeTime.sampleRate)
+        players[next].play(at: startTime)
+
+        gaplessArmedSlot = next
+        return true
+    }
+
+    /// Drop a pending gapless hand-off (seek, skip, or new track).
+    private func cancelGapless() {
+        guard let armed = gaplessArmedSlot else { return }
+        slots[armed].generation += 1
+        players[armed].stop()
+        slots[armed].file = nil
+        mixers[armed].outputVolume = 0
+        gaplessArmedSlot = nil
+    }
+
     private func ramp(from outgoing: Int, to incoming: Int, duration: TimeInterval) {
         let step: TimeInterval = 0.05
         var elapsed: TimeInterval = 0
@@ -315,7 +385,19 @@ final class AuraAudioEngine {
             DispatchQueue.main.async {
                 guard gen == self.slots[index].generation else { return }  // stale
                 guard index == self.activeIndex else { return }            // outgoing track
-                MainActor.assumeIsolated { self.onTrackFinished?() }
+
+                MainActor.assumeIsolated {
+                    if let armed = self.gaplessArmedSlot {
+                        // The next track is already playing — just hand over.
+                        self.gaplessArmedSlot = nil
+                        self.players[index].stop()
+                        self.slots[index].file = nil
+                        self.activeIndex = armed
+                        self.onGaplessAdvance?()
+                    } else {
+                        self.onTrackFinished?()
+                    }
+                }
             }
         }
 
@@ -335,6 +417,7 @@ final class AuraAudioEngine {
 
     /// Seek within the active track.
     func seek(to time: TimeInterval) {
+        cancelGapless()          // the hand-off time is no longer valid
         let index = activeIndex
         guard let file = slots[index].file else { return }
         let wasPlaying = players[index].isPlaying
@@ -361,6 +444,7 @@ final class AuraAudioEngine {
 
     func stop() {
         cancelCrossfade()
+        gaplessArmedSlot = nil
         for index in 0..<2 {
             slots[index].generation += 1
             players[index].stop()

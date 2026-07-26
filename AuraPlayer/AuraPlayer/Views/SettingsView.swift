@@ -46,12 +46,15 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Toggle("Crossfade", isOn: $player.crossfadeEnabled)
-                        .tint(Color.accent)
-                        .foregroundStyle(Color.textPrimary)
-                        .listRowBackground(Color.surface)
+                    Picker("Track Transition", selection: $player.transition) {
+                        ForEach(TrackTransition.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.surface)
 
-                    if player.crossfadeEnabled {
+                    if player.transition == .crossfade {
                         VStack(alignment: .leading, spacing: AuraSpacing.xs) {
                             HStack {
                                 Text("Duration")
@@ -75,7 +78,7 @@ struct SettingsView: View {
                         .font(.auraCaption)
                         .foregroundStyle(Color.textSecondary)
                 } footer: {
-                    Text("Tracks overlap when one ends. Manual skips are always instant. Normalization evens out loudness between tracks.")
+                    Text("Gapless removes the silence between tracks — best for live albums and continuous mixes. Crossfade overlaps them instead. Manual skips are always instant. Normalization evens out loudness between tracks.")
                         .font(.auraCaption)
                         .foregroundStyle(Color.textTertiary)
                 }

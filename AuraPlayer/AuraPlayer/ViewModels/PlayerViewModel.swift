@@ -17,6 +17,26 @@ enum RepeatMode: Int {
     case none, one, all
 }
 
+/// How one track hands over to the next.
+enum TrackTransition: String, CaseIterable, Identifiable {
+    /// Next track starts after the previous fully stops (small gap).
+    case none
+    /// Next track is scheduled to the exact sample the previous ends — no gap.
+    case gapless
+    /// Tracks overlap with a volume ramp.
+    case crossfade
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .none:      return "Off"
+        case .gapless:   return "Gapless"
+        case .crossfade: return "Crossfade"
+        }
+    }
+}
+
 @MainActor
 final class PlayerViewModel: ObservableObject {
 
@@ -123,6 +143,7 @@ final class PlayerViewModel: ObservableObject {
     func load(queue: [URL], startAt index: Int = 0) {
         self.queue = queue
         engine.onTrackFinished = { [weak self] in self?.handleTrackFinished() }
+        engine.onGaplessAdvance = { [weak self] in self?.handleGaplessAdvance() }
         
         let start = queue.indices.contains(index) ? index : 0
         if isShuffled {
@@ -161,6 +182,7 @@ final class PlayerViewModel: ObservableObject {
         hasTrack = true
         countedThisPlay = false
         crossfadeRejectedURL = nil      // new track, allow fading again
+        gaplessArmed = false
 
         updateMetadata(for: url)
 
@@ -256,6 +278,7 @@ final class PlayerViewModel: ObservableObject {
         countedThisPlay = resumeAt >= playCountThreshold
 
         engine.onTrackFinished = { [weak self] in self?.handleTrackFinished() }
+        engine.onGaplessAdvance = { [weak self] in self?.handleGaplessAdvance() }
 
         updateMetadata(for: url)
         publishNowPlaying()
@@ -369,12 +392,18 @@ final class PlayerViewModel: ObservableObject {
     // MARK: - Crossfade
 
     private enum CrossfadeKeys {
-        static let enabled = "player.crossfadeEnabled"
+        static let transition = "player.trackTransition"
         static let duration = "player.crossfadeDuration"
     }
 
-    @Published var crossfadeEnabled: Bool = UserDefaults.standard.bool(forKey: CrossfadeKeys.enabled) {
-        didSet { UserDefaults.standard.set(crossfadeEnabled, forKey: CrossfadeKeys.enabled) }
+    @Published var transition: TrackTransition = {
+        let raw = UserDefaults.standard.string(forKey: CrossfadeKeys.transition) ?? ""
+        return TrackTransition(rawValue: raw) ?? .none
+    }() {
+        didSet {
+            UserDefaults.standard.set(transition.rawValue, forKey: CrossfadeKeys.transition)
+            gaplessArmed = false
+        }
     }
 
     /// Overlap length in seconds (2...12).
@@ -399,9 +428,46 @@ final class PlayerViewModel: ObservableObject {
     private var crossfadeAttemptInFlight = false
     private var crossfadeRejectedURL: URL?
 
+    /// Arm the next track shortly before the current one ends so the hand-off
+    /// is sample-exact. Re-armed per track, not per tick.
+    private var gaplessArmed = false
+
+    private func armGaplessIfNeeded() {
+        guard transition == .gapless,
+              isPlaying,
+              !isLooping,
+              repeatMode != .one,
+              duration > 0,
+              !gaplessArmed,
+              !engine.isGaplessArmed,
+              let nextURL = upcomingTrackURL
+        else { return }
+
+        // Arm a few seconds out: long enough to load the file, short enough
+        // that a skip or seek in between is unlikely.
+        let remaining = duration - currentTime
+        guard remaining > 0, remaining <= 5 else { return }
+
+        gaplessArmed = true
+        Task { [weak self] in
+            guard let self else { return }
+            let gain = await self.cachedGain(for: nextURL)
+            await MainActor.run {
+                // Falls back to a normal switch if formats differ.
+                self.engine.queueGapless(to: nextURL, gainDB: gain)
+            }
+        }
+    }
+
+    /// The engine already handed over to the next track; catch the queue up.
+    private func handleGaplessAdvance() {
+        gaplessArmed = false
+        advancePositionAfterCrossfade()   // same bookkeeping: pointer + metadata
+    }
+
     /// Called from the ticker: start overlapping the next track near the end.
     private func beginCrossfadeIfNeeded() {
-        guard crossfadeEnabled,
+        guard transition == .crossfade,
               isPlaying,
               !isLooping,                    // never fade out of an A-B loop
               repeatMode != .one,            // repeat-one shouldn't fade into itself
@@ -446,6 +512,7 @@ final class PlayerViewModel: ObservableObject {
             position = 0
         }
         duration = engine.duration
+        gaplessArmed = false
         if let url = currentTrackURL {
             countedThisPlay = false
             updateMetadata(for: url)
@@ -690,6 +757,7 @@ final class PlayerViewModel: ObservableObject {
             }
             
             self.enforceLoopIfNeeded()
+            self.armGaplessIfNeeded()
             self.beginCrossfadeIfNeeded()
 
             self.tickCount += 1
