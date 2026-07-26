@@ -14,6 +14,7 @@ struct LyricsView: View {
 
     @EnvironmentObject var library: LibraryViewModel
     @State private var showEditor = false
+    @State private var showSearch = false
 
     private var activeIndex: Int? {
         player.lyrics.activeIndex(at: player.currentTime)
@@ -32,11 +33,7 @@ struct LyricsView: View {
                     ProgressView().tint(Color.accent)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if player.lyrics.isEmpty {
-                    ContentUnavailableView(
-                        "No Lyrics",
-                        systemImage: "quote.bubble",
-                        description: Text("No lyrics found for this track. Drop a matching .lrc file next to the audio file to add your own.")
-                    )
+                    emptyState
                 } else {
                     lyricsList
                 }
@@ -49,10 +46,7 @@ struct LyricsView: View {
                     Button("Done") { dismiss() }.foregroundStyle(Color.accent)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    if currentTrack != nil {
-                        Button("Edit") { showEditor = true }
-                            .foregroundStyle(Color.accent)
-                    }
+                    if currentTrack != nil { actionsMenu }
                 }
             }
             .sheet(isPresented: $showEditor) {
@@ -61,8 +55,84 @@ struct LyricsView: View {
                         .environmentObject(player)
                 }
             }
+            .sheet(isPresented: $showSearch) {
+                if let track = currentTrack {
+                    LyricsSearchView(track: track)
+                        .environmentObject(player)
+                }
+            }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var actionsMenu: some View {
+        Menu {
+            Button {
+                showSearch = true
+            } label: {
+                Label("Search Online", systemImage: "magnifyingglass")
+            }
+
+            Button {
+                showEditor = true
+            } label: {
+                Label("Edit Lyrics", systemImage: "pencil")
+            }
+
+            if !player.lyrics.isEmpty {
+                Divider()
+
+                Button(role: .destructive) {
+                    removeLyrics()
+                } label: {
+                    Label("Remove Lyrics", systemImage: "trash")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .foregroundStyle(Color.accent)
+        }
+        .accessibilityLabel("Lyrics options")
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: AuraSpacing.lg) {
+            Image(systemName: "quote.bubble")
+                .font(.system(size: 44))
+                .foregroundStyle(Color.textTertiary)
+
+            VStack(spacing: AuraSpacing.sm) {
+                Text("No Lyrics")
+                    .font(.auraTitle)
+                    .foregroundStyle(Color.textPrimary)
+                Text("Nothing matched this track's tags. Search the online database, or write them yourself.")
+                    .font(.auraBody)
+                    .foregroundStyle(Color.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, AuraSpacing.xl)
+            }
+
+            if currentTrack != nil {
+                VStack(spacing: AuraSpacing.sm) {
+                    AuraButton("Search Online", systemImage: "magnifyingglass", variant: .primary) {
+                        showSearch = true
+                    }
+                    AuraButton("Write Lyrics", systemImage: "pencil", variant: .secondary) {
+                        showEditor = true
+                    }
+                }
+                .padding(.horizontal, AuraSpacing.xxl)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Clear the sidecar, the network cache and the "nothing found" flag so
+    /// the next lookup — or a manual search — starts from scratch.
+    private func removeLyrics() {
+        guard let track = currentTrack else { return }
+        LyricsProvider.forget(track: track)
+        player.reloadLyrics()
     }
 
     private var lyricsList: some View {
