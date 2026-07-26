@@ -30,8 +30,9 @@ struct EQCurveTests {
     @Test func curveSpansTheAudibleRange() {
         let points = EQCurve.response(bands: flatBands, preamp: 0)
 
-        #expect(points.first?.frequency == EQCurve.minFreq)
-        #expect(abs((points.last?.frequency ?? 0) - EQCurve.maxFreq) < 0.001)
+        // Log spacing round-trips through pow/log10, so compare with tolerance.
+        #expect(abs((points.first?.frequency ?? 0) - EQCurve.minFreq) < 0.001)
+        #expect(abs((points.last?.frequency ?? 0) - EQCurve.maxFreq) < 0.01)
     }
 
     @Test func frequenciesIncreaseMonotonically() {
