@@ -84,7 +84,36 @@ final class PlayerViewModel: ObservableObject {
             guard let self, self.isPlaying else { return }
             self.togglePlayPause()
         }
+
+        setupSessionHandling()
     }
+
+    /// Phone calls, Siri, and unplugged headphones must pause playback —
+    /// otherwise audio suddenly blasts from the speaker.
+    private func setupSessionHandling() {
+        let session = AudioSessionManager.shared
+
+        session.onShouldPause = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self, self.isPlaying else { return }
+                self.wasPlayingBeforeInterruption = true
+                self.togglePlayPause()
+            }
+        }
+
+        session.onMayResume = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self,
+                      self.wasPlayingBeforeInterruption,
+                      !self.isPlaying else { return }
+                self.wasPlayingBeforeInterruption = false
+                self.togglePlayPause()
+            }
+        }
+    }
+
+    /// Only auto-resume after an interruption if we were actually playing.
+    private var wasPlayingBeforeInterruption = false
 
     // MARK: - Loading
 
@@ -129,7 +158,8 @@ final class PlayerViewModel: ObservableObject {
         isPlaying = true
         hasTrack = true
         countedThisPlay = false
-        
+        crossfadeRejectedURL = nil      // new track, allow fading again
+
         updateMetadata(for: url)
 
         startTicking()
@@ -280,6 +310,12 @@ final class PlayerViewModel: ObservableObject {
         return nil
     }
 
+    /// Guards against the 0.1s ticker firing repeated crossfade attempts:
+    /// one attempt in flight at a time, and no retry for a track we already
+    /// failed to fade into (e.g. a format that needs a graph rewire).
+    private var crossfadeAttemptInFlight = false
+    private var crossfadeRejectedURL: URL?
+
     /// Called from the ticker: start overlapping the next track near the end.
     private func beginCrossfadeIfNeeded() {
         guard crossfadeEnabled,
@@ -288,22 +324,32 @@ final class PlayerViewModel: ObservableObject {
               repeatMode != .one,            // repeat-one shouldn't fade into itself
               duration > 0,
               !engine.isCrossfading,
-              let nextURL = upcomingTrackURL
+              !crossfadeAttemptInFlight,
+              let nextURL = upcomingTrackURL,
+              nextURL != crossfadeRejectedURL
         else { return }
 
         let remaining = duration - currentTime
         guard remaining > 0, remaining <= crossfadeDuration else { return }
+
+        crossfadeAttemptInFlight = true
 
         // Kick off with cached gain if we have it; analysis fills in shortly after.
         Task { [weak self] in
             guard let self else { return }
             let gain = await self.cachedGain(for: nextURL)
             await MainActor.run {
+                defer { self.crossfadeAttemptInFlight = false }
                 guard !self.engine.isCrossfading else { return }
+
                 if self.engine.crossfade(to: nextURL,
                                          duration: self.crossfadeDuration,
                                          gainDB: gain) {
                     self.advancePositionAfterCrossfade()
+                } else {
+                    // Can't fade into this file — fall back to a hard switch
+                    // when it finishes rather than retrying every tick.
+                    self.crossfadeRejectedURL = nextURL
                 }
             }
         }

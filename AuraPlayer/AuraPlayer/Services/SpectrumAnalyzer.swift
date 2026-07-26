@@ -2,33 +2,57 @@
 //  SpectrumAnalyzer.swift
 //  AuraPlayer
 //
-//  Real-time FFT of the audio stream. A tap on the main mixer feeds
-//  vDSP on the audio thread; results are published to the UI at ~43fps.
+//  Real-time FFT of the audio stream.
+//
+//  Realtime-safety rules followed here:
+//   • every buffer used by the FFT is allocated once, up front — no allocation
+//     happens inside the tap callback
+//   • the callback never spawns tasks, takes locks that can block, or touches
+//     SwiftUI; it only writes the latest bar values behind a spin lock
+//   • the UI polls those values at 30 fps from the main actor
 //
 
 import Foundation
 import AVFoundation
 import Accelerate
 import Combine
+import os
 
-/// DSP core. Only ever touched from the realtime audio thread.
+/// DSP core. `process` runs on the realtime audio thread only.
 final class FFTProcessor: @unchecked Sendable {
 
     private let fftSize: Int
     private let halfSize: Int
     private let log2n: vDSP_Length
     private let fftSetup: FFTSetup
-    private let window: [Float]
     private let barCount: Int
     private var barRanges: [(lo: Int, hi: Int)] = []
+
+    // Pre-allocated scratch — reused on every callback so the audio thread
+    // never allocates.
+    private var window: [Float]
+    private var windowed: [Float]
+    private var realp: [Float]
+    private var imagp: [Float]
+    private var magnitudes: [Float]
     private var smoothed: [Float]
+
+    /// Latest bars, guarded by a spin lock so the audio thread never blocks.
+    private var latest: [Float]
+    private let lock = OSAllocatedUnfairLock<Void>(initialState: ())
 
     init?(fftSize: Int = 1024, barCount: Int = 32, sampleRate: Double) {
         self.fftSize = fftSize
         self.halfSize = fftSize / 2
         self.barCount = barCount
         self.log2n = vDSP_Length(log2(Float(fftSize)))
+
+        self.windowed = [Float](repeating: 0, count: fftSize)
+        self.realp = [Float](repeating: 0, count: fftSize / 2)
+        self.imagp = [Float](repeating: 0, count: fftSize / 2)
+        self.magnitudes = [Float](repeating: 0, count: fftSize / 2)
         self.smoothed = [Float](repeating: 0, count: barCount)
+        self.latest = [Float](repeating: 0, count: barCount)
 
         guard let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else { return nil }
         self.fftSetup = setup
@@ -61,17 +85,12 @@ final class FFTProcessor: @unchecked Sendable {
         }
     }
 
-    /// Returns smoothed 0...1 levels per bar, or nil if the buffer is too short.
-    func process(_ buffer: AVAudioPCMBuffer) -> [Float]? {
+    /// Called on the realtime audio thread. Allocation-free.
+    func process(_ buffer: AVAudioPCMBuffer) {
         guard let channel = buffer.floatChannelData?[0],
-              Int(buffer.frameLength) >= fftSize else { return nil }
+              Int(buffer.frameLength) >= fftSize else { return }
 
-        var windowed = [Float](repeating: 0, count: fftSize)
         vDSP_vmul(channel, 1, window, 1, &windowed, 1, vDSP_Length(fftSize))
-
-        var realp = [Float](repeating: 0, count: halfSize)
-        var imagp = [Float](repeating: 0, count: halfSize)
-        var magnitudes = [Float](repeating: 0, count: halfSize)
 
         realp.withUnsafeMutableBufferPointer { rp in
             imagp.withUnsafeMutableBufferPointer { ip in
@@ -89,20 +108,21 @@ final class FFTProcessor: @unchecked Sendable {
         var scale = Float(1.0) / Float(fftSize)
         vDSP_vsmul(magnitudes, 1, &scale, &magnitudes, 1, vDSP_Length(halfSize))
 
-        // Peak per bar → dB → normalize -60...0 dB to 0...1
-        var bars = [Float](repeating: 0, count: barCount)
+        // Peak per bar → dB → normalize -60...0 dB to 0...1, smoothed over time.
         for (i, range) in barRanges.enumerated() {
             var peak: Float = 0
             for b in range.lo...range.hi { peak = max(peak, magnitudes[b]) }
             let db = 20 * log10(peak + 1e-9)
-            bars[i] = max(0, min(1, (db + 60) / 60))
+            let level = max(0, min(1, (db + 60) / 60))
+            smoothed[i] = smoothed[i] * 0.7 + level * 0.3
         }
 
-        // Temporal smoothing so bars glide instead of flickering.
-        for i in 0..<barCount {
-            smoothed[i] = smoothed[i] * 0.7 + bars[i] * 0.3
-        }
-        return smoothed
+        lock.withLock { _ in latest = smoothed }
+    }
+
+    /// Read the most recent bars from any thread.
+    func currentLevels() -> [Float] {
+        lock.withLock { _ in latest }
     }
 }
 
@@ -116,6 +136,7 @@ final class SpectrumAnalyzer: ObservableObject {
 
     private var processor: FFTProcessor?
     private var isTapped = false
+    private var pollTimer: Timer?
 
     private init() {
         levels = [Float](repeating: 0, count: barCount)
@@ -131,16 +152,24 @@ final class SpectrumAnalyzer: ObservableObject {
 
         processor = proc
         mixer.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-            // Realtime audio thread — DSP only, then hop to main to publish.
-            guard let bars = proc.process(buffer) else { return }
-            Task { @MainActor in
-                SpectrumAnalyzer.shared.levels = bars
-            }
+            // Realtime audio thread: DSP only, no allocation, no tasks.
+            proc.process(buffer)
         }
         isTapped = true
+
+        // Pull the latest values at 30 fps instead of pushing from the tap.
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let processor = self.processor else { return }
+                self.levels = processor.currentLevels()
+            }
+        }
     }
 
     func stop() {
+        pollTimer?.invalidate()
+        pollTimer = nil
+
         guard isTapped else { return }
         AuraAudioEngine.shared.engine.mainMixerNode.removeTap(onBus: 0)
         processor = nil
