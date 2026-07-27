@@ -15,9 +15,6 @@ Plays your own files — no streaming, no accounts, no ads, no telemetry.
   <sub>Library&nbsp;· Now Playing&nbsp;· Equalizer &amp; spectrum&nbsp;· Albums</sub>
 </p>
 
-> The images above are design renders produced from the app's own colour, type
-> and spacing tokens. Swap in real device screenshots before publishing.
-
 ---
 
 ## Features
