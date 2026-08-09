@@ -182,6 +182,20 @@ An honest list, in rough order of likely value:
 
 ---
 
+## Support
+
+AuraPlayer is free, and free to use commercially. If it's useful to you — or if
+you're shipping something built on it — a donation helps justify the time spent
+maintaining it.
+
+- [GitHub Sponsors](https://github.com/sponsors/<you>)
+- [Buy Me a Coffee](https://buymeacoffee.com/<you>)
+
+Entirely optional, and never required by the licence.
+
+---
+
 ## Licence
 
-See [LICENSE](LICENSE).
+[MIT](LICENSE) — do what you like, including commercial use, as long as the
+copyright notice stays with the code. No warranty.
