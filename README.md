@@ -35,10 +35,12 @@ Plays your own files — no streaming, no accounts, no ads, no telemetry.
 ### Sound
 
 - **10-band parametric EQ** (32 Hz – 16 kHz) with adjustable per-band width and preamp
-- 9 built-in presets plus user-saved custom presets
-- Live **frequency response curve** (Bode plot) that follows the sliders
-- Real-time **FFT spectrum analyzer** (Accelerate/vDSP) with bars, line, and mirror modes
+  ...
 - Effect nodes bypass themselves when neutral, so nothing burns CPU doing a no-op
+
+<p align="center">
+  <img src="docs/screenshots/equalizer-demo.gif" width="30%" alt="Live EQ adjustment" />
+</p>
 
 ### Library
 
