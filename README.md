@@ -39,7 +39,7 @@ Plays your own files — no streaming, no accounts, no ads, no telemetry.
 - Effect nodes bypass themselves when neutral, so nothing burns CPU doing a no-op
 
 <p align="center">
-  <img src="docs/screenshots/equalizer-demo.gif" width="30%" alt="Live EQ adjustment" />
+  <img src="docs/screenshots/auraplayer_demo.gif" width="30%" alt="Live EQ adjustment" />
 </p>
 
 ### Library
